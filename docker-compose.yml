@@ -1,0 +1,28 @@
+services:
+  teslamate-calendar:
+    image: ghcr.io/yourname/teslamate-calendar:latest
+    container_name: teslamate-calendar
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      LISTEN_ADDR: ":8080"
+      TESLAMATE_API_BASE_URL: "http://teslamateapi:8080"
+      TESLAMATE_API_TOKEN: ""
+      TESLAMATE_API_AUTH_HEADER: "Authorization"
+      TESLAMATE_API_AUTH_SCHEME: "Bearer"
+      CALENDAR_FEED_ENABLE: "true"
+      CALENDAR_FEED_TOKEN: "tesla"
+      DEFAULT_DAYS: "90"
+      MAX_DAYS: "365"
+      DEFAULT_TIMEZONE: "Asia/Shanghai"
+      DEFAULT_VIEW: "normal"
+      DAILY_INCLUDE_ITEMS: "true"
+      CACHE_TTL_SECONDS: "1800"
+      REQUEST_TIMEOUT_SECONDS: "10"
+      LOG_LEVEL: "info"
+      MAP_PROVIDER: "google"
+      TESLAMATE_SUMMARY_DASHBOARD_PATH: "/d/teslamate/overview"
+      TESLAMATE_DRIVE_DASHBOARD_PATH: "/d/teslamate/drives"
+      TESLAMATE_CHARGE_DASHBOARD_PATH: "/d/teslamate/charges"
+      TESLAMATE_UPDATE_DASHBOARD_PATH: "/d/teslamate/updates"
