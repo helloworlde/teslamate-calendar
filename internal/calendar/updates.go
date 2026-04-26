@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
-func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool, loc *time.Location, dashboardBaseURL, dashboardPath string) []Event {
+func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	if loc == nil {
 		loc = time.Local
 	}
@@ -50,7 +50,8 @@ func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool
 		if detail && u.ReleaseNotes != "" {
 			descParts = append(descParts, "Release Notes: "+u.ReleaseNotes)
 		}
-		desc := AppendLinksSection(strings.Join(descParts, "\n"), "", DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end))
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "updates", eventIDString(u.ID), start, end))
+		desc := AppendLinksSection(strings.Join(descParts, "\n"), "", dash)
 		uid := UIDWithFallback(
 			fmt.Sprintf("teslamate-calendar-car-%s-update-", carID),
 			u.ID,

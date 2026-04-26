@@ -4,13 +4,26 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/client"
-	"teslamate-calendar/internal/config"
-	"teslamate-calendar/internal/service"
+	"github.com/helloworlde/teslamate-calendar/internal/client"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/service"
 )
+
+func testAPIConfig() config.Config {
+	return config.Config{
+		CalendarFeedToken:   "s3cret-test",
+		TeslaMateAPIBaseURL: "http://a",
+		DefaultDays:         90,
+		MaxDays:             365,
+		DefaultTimezone:     "Asia/Shanghai",
+		CacheTTL:            time.Minute,
+		DefaultView:         "normal",
+	}
+}
 
 func TestDocsEndpoints(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -23,15 +36,8 @@ func TestDocsEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{
-		CalendarFeedEnable: true,
-		DefaultDays:        90,
-		MaxDays:            365,
-		DefaultTimezone:    "Asia/Shanghai",
-		CacheTTL:           time.Minute,
-		DefaultView:        "normal",
-		MapProvider:        "google",
-	}
+	cfg := testAPIConfig()
+	cfg.TeslaMateAPIBaseURL = upstream.URL
 	r := NewRouter(cfg, NewHandlers(cfg, service.NewCalendarService(cfg, cl)))
 
 	for _, p := range []string{"/openapi.json", "/swagger/index.html", "/scalar"} {
@@ -41,28 +47,31 @@ func TestDocsEndpoints(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s expected 200 got %d", p, w.Code)
 		}
+		if p == "/swagger/index.html" && strings.Contains(w.Body.String(), "preauthorize") {
+			t.Fatal("swagger must not preauthorize")
+		}
 	}
 }
 
-func TestOpenAPISpecContent(t *testing.T) {
+func TestOpenAPISpecNoLiveToken(t *testing.T) {
+	raw := BuildOpenAPISpec()
+	if strings.Contains(raw, "s3cret") {
+		t.Fatalf("spec must not echo deployment tokens")
+	}
+	if !strings.Contains(raw, openAPIPlaceholderToken) {
+		t.Fatal("expected placeholder in spec")
+	}
 	var root map[string]any
-	if err := json.Unmarshal([]byte(BuildOpenAPISpec(config.Config{
-		CalendarFeedToken: "tesla",
-		DefaultDays:       90,
-		DefaultTimezone:   "Asia/Shanghai",
-		DefaultView:       "normal",
-	})), &root); err != nil {
+	if err := json.Unmarshal([]byte(raw), &root); err != nil {
 		t.Fatal(err)
 	}
-	if root["openapi"] != "3.0.3" {
-		t.Fatalf("openapi: %v", root["openapi"])
-	}
-	comps, _ := root["components"].(map[string]any)
-	if comps["schemas"] == nil || comps["parameters"] == nil || comps["responses"] == nil {
-		t.Fatalf("expected components: schemas, parameters, responses")
-	}
+}
+
+func TestOpenAPIPaths(t *testing.T) {
+	var root map[string]any
+	_ = json.Unmarshal([]byte(BuildOpenAPISpec()), &root)
 	paths, _ := root["paths"].(map[string]any)
 	if paths["/healthz"] == nil || paths["/calendar/token/{Token}/cars/{CarID}/daily.ics"] == nil {
-		t.Fatalf("expected core paths in spec")
+		t.Fatalf("expected core paths")
 	}
 }

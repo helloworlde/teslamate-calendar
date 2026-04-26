@@ -8,12 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
+	"strconv"
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
-	"teslamate-calendar/internal/util"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/util"
 )
 
 type Query struct {
@@ -53,34 +53,63 @@ func New(baseURL, token, authHeader, authScheme string, timeout time.Duration) (
 	}, nil
 }
 
+// apiURL 在 BaseURL（仅 scheme+host）下拼接 TeslaMateApi 的 /api/... 路径。
+func (c *Client) apiURL(elem ...string) *url.URL {
+	return c.BaseURL.JoinPath(append([]string{"api"}, elem...)...)
+}
+
 func (c *Client) Healthz(ctx context.Context) error {
-	_, err := c.get(ctx, []string{"healthz"}, nil)
+	_, err := c.get(ctx, c.apiURL("healthz"), nil)
 	return err
 }
 
 func (c *Client) Readyz(ctx context.Context) error {
-	_, err := c.get(ctx, []string{"readyz"}, nil)
+	_, err := c.get(ctx, c.apiURL("readyz"), nil)
 	return err
 }
 
 func (c *Client) ListCars(ctx context.Context) ([]model.Car, error) {
-	body, err := c.get(ctx, []string{"v1", "cars"}, nil)
+	body, err := c.get(ctx, c.apiURL("v1", "cars"), nil)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := decodeArrayPayload(body, "cars")
-	if err != nil {
+	var resp apiCarsResponse
+	if err := decodeJSON(body, &resp); err != nil {
 		return nil, err
 	}
-	return model.ParseCars(rows), nil
+	out := make([]model.Car, 0, len(resp.Data.Cars))
+	for _, row := range resp.Data.Cars {
+		name := ""
+		if row.Name != nil {
+			name = *row.Name
+		}
+		out = append(out, model.Car{
+			ID:   row.CarID,
+			Name: name,
+		})
+	}
+	return out, nil
 }
 
-func (c *Client) GetCar(ctx context.Context, carID string) (map[string]any, error) {
-	body, err := c.get(ctx, []string{"v1", "cars", carID}, nil)
-	if err != nil {
-		return nil, err
+func (c *Client) GetCar(ctx context.Context, carID string) (model.CarProfile, error) {
+	wantID, err := strconv.ParseInt(strings.TrimSpace(carID), 10, 64)
+	if err != nil || wantID < 1 {
+		return model.CarProfile{}, fmt.Errorf("invalid car id")
 	}
-	return decodeObjectPayload(body, "car")
+	body, err := c.get(ctx, c.apiURL("v1", "cars", carID), nil)
+	if err != nil {
+		return model.CarProfile{}, err
+	}
+	var resp apiCarsResponse
+	if err := decodeJSON(body, &resp); err != nil {
+		return model.CarProfile{}, err
+	}
+	for _, row := range resp.Data.Cars {
+		if row.CarID == wantID {
+			return teslaMateCarRowToProfile(row), nil
+		}
+	}
+	return model.CarProfile{}, fmt.Errorf("car id %d not found in response", wantID)
 }
 
 func (c *Client) ListDrives(ctx context.Context, carID string, q Query) ([]model.Drive, error) {
@@ -95,15 +124,46 @@ func (c *Client) ListDrives(ctx context.Context, carID string, q Query) ([]model
 	if q.MaxDistance != "" {
 		v.Set("maxDistance", q.MaxDistance)
 	}
-	body, err := c.get(ctx, []string{"v1", "cars", carID, "drives"}, v)
+	body, err := c.get(ctx, c.apiURL("v1", "cars", carID, "drives"), v)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := decodeArrayPayload(body, "drives")
-	if err != nil {
+	var resp apiDrivesResponse
+	if err := decodeJSON(body, &resp); err != nil {
 		return nil, err
 	}
-	return model.ParseDrives(rows), nil
+	out := make([]model.Drive, 0, len(resp.Data.Drives))
+	for _, drive := range resp.Data.Drives {
+		durationSeconds := drive.DurationSec
+		if durationSeconds == nil && drive.DurationMin != nil {
+			sec := *drive.DurationMin * 60
+			durationSeconds = &sec
+		}
+		out = append(out, model.Drive{
+			ID:                drive.DriveID,
+			StartDate:         parseAPITime(drive.StartDate),
+			EndDate:           parseAPITime(drive.EndDate),
+			Distance:          drive.Distance,
+			DurationSeconds:   durationSeconds,
+			StartBatteryLevel: drive.StartBatteryLevel,
+			EndBatteryLevel:   drive.EndBatteryLevel,
+			Consumption:       drive.Consumption,
+			AvgSpeed:          drive.AvgSpeed,
+			MaxSpeed:          drive.MaxSpeed,
+			AvgPower:          drive.AvgPower,
+			MaxPower:          drive.MaxPower,
+			StartAddress:      drive.StartAddress,
+			EndAddress:        drive.EndAddress,
+			StartGeofence:     drive.StartGeofence,
+			EndGeofence:       drive.EndGeofence,
+			StartLat:          drive.StartLat,
+			StartLng:          drive.StartLng,
+			EndLat:            drive.EndLat,
+			EndLng:            drive.EndLng,
+			HasRoute:          strings.TrimSpace(drive.Polyline) != "",
+		})
+	}
+	return out, nil
 }
 
 func (c *Client) ListCharges(ctx context.Context, carID string, q Query) ([]model.Charge, error) {
@@ -112,43 +172,75 @@ func (c *Client) ListCharges(ctx context.Context, carID string, q Query) ([]mode
 		util.AddQueryTime(v, "startDate", q.StartDate)
 		util.AddQueryTime(v, "endDate", q.EndDate)
 	}
-	body, err := c.get(ctx, []string{"v1", "cars", carID, "charges"}, v)
+	body, err := c.get(ctx, c.apiURL("v1", "cars", carID, "charges"), v)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := decodeArrayPayload(body, "charges")
-	if err != nil {
+	var resp apiChargesResponse
+	if err := decodeJSON(body, &resp); err != nil {
 		return nil, err
 	}
-	return model.ParseCharges(rows), nil
+	out := make([]model.Charge, 0, len(resp.Data.Charges))
+	for _, charge := range resp.Data.Charges {
+		out = append(out, model.Charge{
+			ID:                charge.ChargeID,
+			StartDate:         parseAPITime(charge.StartDate),
+			EndDate:           parseAPITime(charge.EndDate),
+			DurationMinutes:   charge.DurationMin,
+			StartBatteryLevel: charge.StartBatteryLevel,
+			EndBatteryLevel:   charge.EndBatteryLevel,
+			KwhAdded:          charge.ChargeEnergyAdded,
+			Cost:              charge.Cost,
+			MaxPower:          charge.MaxPower,
+			AvgPower:          charge.AveragePower,
+			Address:           charge.Address,
+			Geofence:          charge.Geofence,
+			Lat:               charge.Latitude,
+			Lng:               charge.Longitude,
+		})
+	}
+	return out, nil
 }
 
 func (c *Client) ListUpdates(ctx context.Context, carID string) ([]model.Update, error) {
-	body, err := c.get(ctx, []string{"v1", "cars", carID, "updates"}, nil)
+	body, err := c.get(ctx, c.apiURL("v1", "cars", carID, "updates"), nil)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := decodeArrayPayload(body, "updates")
-	if err != nil {
+	var resp apiUpdatesResponse
+	if err := decodeJSON(body, &resp); err != nil {
 		return nil, err
 	}
-	return model.ParseUpdates(rows), nil
+	out := make([]model.Update, 0, len(resp.Data.Updates))
+	for _, update := range resp.Data.Updates {
+		out = append(out, model.Update{
+			ID:           update.UpdateID,
+			Version:      update.Version,
+			StartDate:    parseAPITime(update.StartDate),
+			EndDate:      parseAPITime(update.EndDate),
+			Status:       update.Status,
+			ReleaseNotes: update.ReleaseNotes,
+		})
+	}
+	return out, nil
 }
 
 func (c *Client) GetGlobalSettings(ctx context.Context) (model.GlobalSettings, error) {
-	body, err := c.get(ctx, []string{"v1", "globalsettings"}, nil)
+	body, err := c.get(ctx, c.apiURL("v1", "globalsettings"), nil)
 	if err != nil {
 		return model.GlobalSettings{}, err
 	}
-	obj, err := decodeObjectPayload(body, "globalsettings", "settings")
-	if err != nil {
+	var resp apiGlobalSettingsResponse
+	if err := decodeJSON(body, &resp); err != nil {
 		return model.GlobalSettings{}, err
 	}
-	return model.GlobalSettings{Raw: obj}, nil
+	return model.GlobalSettings{
+		GrafanaURL: firstNonEmpty(resp.Data.Settings.TeslaMateURLs.GrafanaURL, resp.Data.Settings.GrafanaURL),
+	}, nil
 }
 
-func (c *Client) get(ctx context.Context, segments []string, query url.Values) ([]byte, error) {
-	body, code, msg, err := c.doGet(ctx, segments, query)
+func (c *Client) get(ctx context.Context, target *url.URL, query url.Values) ([]byte, error) {
+	body, code, msg, err := c.doGet(ctx, target, query)
 	if err != nil {
 		return nil, err
 	}
@@ -158,17 +250,12 @@ func (c *Client) get(ctx context.Context, segments []string, query url.Values) (
 	return nil, fmt.Errorf("non-2xx from teslamateapi: %d %s", code, msg)
 }
 
-func (c *Client) doGet(ctx context.Context, segments []string, query url.Values) ([]byte, int, string, error) {
-	u := *c.BaseURL
-	joined := make([]string, 0, len(segments)+1)
-	joined = append(joined, "api")
-	joined = append(joined, segments...)
-	u.Path = path.Join(joined...)
-	if !strings.HasPrefix(u.Path, "/") {
-		u.Path = "/" + u.Path
-	}
+func (c *Client) doGet(ctx context.Context, target *url.URL, query url.Values) ([]byte, int, string, error) {
+	u := target
 	if len(query) > 0 {
-		u.RawQuery = query.Encode()
+		u2 := *target
+		u2.RawQuery = query.Encode()
+		u = &u2
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -200,122 +287,45 @@ func (c *Client) doGet(ctx context.Context, segments []string, query url.Values)
 	return body, resp.StatusCode, strings.TrimSpace(string(body)), nil
 }
 
-func decodeArrayPayload(body []byte, preferredKeys ...string) ([]map[string]any, error) {
-	var arr []map[string]any
-	if err := json.Unmarshal(body, &arr); err == nil {
-		return arr, nil
+func decodeJSON(body []byte, out any) error {
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("failed to decode teslamateapi response: %w", err)
 	}
-	var wrapped struct {
-		Data []map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(body, &wrapped); err == nil && wrapped.Data != nil {
-		return wrapped.Data, nil
-	}
-	var wrappedRows struct {
-		Rows []map[string]any `json:"rows"`
-	}
-	if err := json.Unmarshal(body, &wrappedRows); err == nil && wrappedRows.Rows != nil {
-		return wrappedRows.Rows, nil
-	}
-	var root map[string]any
-	if err := json.Unmarshal(body, &root); err == nil {
-		for _, key := range preferredKeys {
-			if rows, ok := arrayAt(root, "data", key); ok {
-				return rows, nil
-			}
-			if rows, ok := arrayAt(root, key); ok {
-				return rows, nil
-			}
-		}
-		if rows, ok := firstArray(root); ok {
-			return rows, nil
-		}
-	}
-	return nil, errors.New("failed to decode array payload")
+	return nil
 }
 
-func decodeObjectPayload(body []byte, preferredKeys ...string) (map[string]any, error) {
-	var obj map[string]any
-	if err := json.Unmarshal(body, &obj); err == nil {
-		for _, key := range preferredKeys {
-			if nested, ok := objectAt(obj, "data", key); ok {
-				return nested, nil
-			}
-			if nested, ok := objectAt(obj, key); ok {
-				return nested, nil
-			}
-		}
-		return obj, nil
+func parseAPITime(raw string) *time.Time {
+	if strings.TrimSpace(raw) == "" {
+		return nil
 	}
-	var wrapped struct {
-		Data map[string]any `json:"data"`
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &t
 	}
-	if err := json.Unmarshal(body, &wrapped); err == nil && wrapped.Data != nil {
-		return wrapped.Data, nil
+	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return &t
 	}
-	return nil, errors.New("failed to decode object payload")
+	return nil
 }
 
-func arrayAt(root map[string]any, keys ...string) ([]map[string]any, bool) {
-	cur := any(root)
-	for _, key := range keys {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		cur, ok = m[key]
-		if !ok {
-			return nil, false
-		}
+func teslaMateCarRowToProfile(row apiTeslaMateCarRow) model.CarProfile {
+	name := ""
+	if row.Name != nil {
+		name = *row.Name
 	}
-	rows, ok := cur.([]any)
-	if !ok {
-		return nil, false
+	return model.CarProfile{
+		ID:          row.CarID,
+		Name:        name,
+		DisplayName: "",
+		VIN:         row.CarDetails.Vin,
+		Model:       row.CarDetails.Model,
 	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, item := range rows {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		out = append(out, m)
-	}
-	return out, true
 }
 
-func objectAt(root map[string]any, keys ...string) (map[string]any, bool) {
-	cur := any(root)
-	for _, key := range keys {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		cur, ok = m[key]
-		if !ok {
-			return nil, false
+func firstNonEmpty(v ...string) string {
+	for _, s := range v {
+		if strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
 		}
 	}
-	m, ok := cur.(map[string]any)
-	return m, ok
-}
-
-func firstArray(root map[string]any) ([]map[string]any, bool) {
-	for _, v := range root {
-		if rows, ok := v.([]any); ok {
-			out := make([]map[string]any, 0, len(rows))
-			for _, item := range rows {
-				m, ok := item.(map[string]any)
-				if ok {
-					out = append(out, m)
-				}
-			}
-			return out, true
-		}
-		if m, ok := v.(map[string]any); ok {
-			if rows, ok := firstArray(m); ok {
-				return rows, true
-			}
-		}
-	}
-	return nil, false
+	return ""
 }

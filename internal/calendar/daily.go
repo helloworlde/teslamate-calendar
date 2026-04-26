@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates []model.Update, loc *time.Location) []model.DailySummary {
@@ -112,14 +112,15 @@ func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates [
 	return out
 }
 
-func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, includeItems bool, dashboardBaseURL, dashboardPath string) []Event {
+func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	out := make([]Event, 0, len(rows))
 	for _, d := range rows {
-		summary := dailyTitle(vehicleName, d, view)
-		desc := BuildDailyDescription(vehicleName, d, includeItems, detail, loc)
+		summary := dailyTitle(vehicleName, d)
+		desc := BuildDailyDescription(vehicleName, d, detail, loc)
 		start := time.Date(d.Day.Year(), d.Day.Month(), d.Day.Day(), 0, 0, 0, 0, loc)
 		end := start.AddDate(0, 0, 1)
-		desc = AppendLinksSection(desc, "", DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end))
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "day", "", start, end))
+		desc = AppendLinksSection(desc, "", dash)
 		uid := fmt.Sprintf("teslamate-calendar-car-%s-daily-%s", carID, d.Day.In(loc).Format("2006-01-02"))
 		allDay := d.Day.In(loc)
 		out = append(out, Event{
@@ -135,19 +136,19 @@ func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, lo
 	return out
 }
 
-func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardBaseURL, dashboardPath string) []Event {
+func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	type weekAgg struct {
-		WeekStart      time.Time
-		WeekEnd        time.Time
-		Distance       float64
-		DriveCnt       int
-		ChargeCnt      int
-		UpdateCnt      int
-		Kwh            float64
-		Days           []model.DailySummary
-		TotalDriveSec  float64
-		Cost           float64
-		MaxSpeed       float64
+		WeekStart     time.Time
+		WeekEnd       time.Time
+		Distance      float64
+		DriveCnt      int
+		ChargeCnt     int
+		UpdateCnt     int
+		Kwh           float64
+		Days          []model.DailySummary
+		TotalDriveSec float64
+		Cost          float64
+		MaxSpeed      float64
 	}
 	byWeek := map[string]*weekAgg{}
 	for _, d := range rows {
@@ -178,24 +179,25 @@ func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, l
 	out := make([]Event, 0, len(keys))
 	for _, k := range keys {
 		w := byWeek[k]
-		summary := weeklyTitle(vehicleName, w.Distance, w.DriveCnt, w.ChargeCnt, view)
+		summary := weeklyTitle(vehicleName, w.DriveCnt, w.ChargeCnt, w.UpdateCnt, w.Distance, w.Kwh)
 		desc := BuildWeeklyDescription(vehicleName, w.WeekStart, w.WeekEnd, loc, w.Distance, w.DriveCnt, w.ChargeCnt, w.UpdateCnt, w.Kwh, w.MaxSpeed, w.Cost, w.TotalDriveSec, w.Days, detail)
 		start := w.WeekStart
 		end := w.WeekEnd
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "week", "", start, end))
 		out = append(out, Event{
 			UID:         fmt.Sprintf("teslamate-calendar-car-%s-weekly-%s", carID, w.WeekStart.Format("2006-01-02")),
 			AllDay:      true,
 			AllDayDate:  w.WeekStart,
 			AllDayEnd:   w.WeekEnd,
 			Summary:     summary,
-			Description: AppendLinksSection(desc, "", DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end)),
+			Description: AppendLinksSection(desc, "", dash),
 			Location:    "Tesla",
 		})
 	}
 	return out
 }
 
-func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardBaseURL, dashboardPath string) []Event {
+func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	type monthAgg struct {
 		Start         time.Time
 		End           time.Time
@@ -239,135 +241,75 @@ func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, 
 	out := make([]Event, 0, len(keys))
 	for _, k := range keys {
 		m := byMonth[k]
-		summary := monthlyTitle(vehicleName, m.Distance, m.DriveCnt, m.ChargeCnt, view)
+		summary := monthlyTitle(vehicleName, m.DriveCnt, m.ChargeCnt, m.UpdateCnt, m.Distance, m.Kwh)
 		desc := BuildMonthlyDescription(vehicleName, m.Start, m.End, loc, m.Distance, m.DriveCnt, m.ChargeCnt, m.UpdateCnt, m.Kwh, m.MaxSpeed, m.Cost, m.TotalDriveSec, m.Days, carID, detail)
 		start := m.Start
 		end := m.End
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "month", "", start, end))
 		out = append(out, Event{
 			UID:         fmt.Sprintf("teslamate-calendar-car-%s-monthly-%s", carID, m.Start.Format("2006-01")),
 			AllDay:      true,
 			AllDayDate:  m.Start,
 			AllDayEnd:   m.End,
 			Summary:     summary,
-			Description: AppendLinksSection(desc, "", DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end)),
+			Description: AppendLinksSection(desc, "", dash),
 			Location:    "Tesla",
 		})
 	}
 	return out
 }
 
-func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
-	switch view {
-	case "compact":
-		parts := []string{"📊"}
-		if d.Distance > 0 {
-			if s := FormatDistanceTitle(d.Distance); s != "" {
-				parts = append(parts, s)
-			}
-		}
-		if d.DriveCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d🚗", d.DriveCount))
-		}
-		if d.ChargeCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d⚡", d.ChargeCount))
-		}
-		if d.UpdateCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d⬆️", d.UpdateCount))
-		}
-		return strings.Join(parts, " · ")
-	case "detail":
-		parts := []string{"📊 " + vehicleName + " 日报"}
-		if d.Distance > 0 {
-			if s := FormatDistanceTitleOneDecimal(d.Distance); s != "" {
-				parts = append(parts, s)
-			}
-		}
-		if d.DriveCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d行程", d.DriveCount))
-		}
-		if d.ChargeCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d充电", d.ChargeCount))
-		}
-		if d.KwhAdded > 0 {
-			if s := FormatKWhTitle(d.KwhAdded); s != "" {
-				parts = append(parts, s)
-			}
-		}
-		if d.UpdateCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d更新", d.UpdateCount))
-		}
-		return strings.Join(parts, " · ")
-	default:
-		parts := []string{"📊 " + vehicleName}
-		if d.Distance > 0 {
-			if s := FormatDistanceTitle(d.Distance); s != "" {
-				parts = append(parts, s)
-			}
-		}
-		if d.DriveCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d行程", d.DriveCount))
-		}
-		if d.ChargeCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d充电", d.ChargeCount))
-		}
-		if d.DriveCount == 0 && d.ChargeCount > 0 && d.KwhAdded > 0 {
-			if s := FormatKWhTitle(d.KwhAdded); s != "" {
-				parts = append(parts, s)
-			}
-		}
-		if d.UpdateCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d更新", d.UpdateCount))
-		}
-		return strings.Join(parts, " · ")
+func summarySegments(driveCnt, chargeCnt, updateCnt int) string {
+	var parts []string
+	if driveCnt > 0 {
+		parts = append(parts, fmt.Sprintf("🚗*%d", driveCnt))
 	}
+	if chargeCnt > 0 {
+		parts = append(parts, fmt.Sprintf("⚡️*%d", chargeCnt))
+	}
+	if updateCnt > 0 {
+		parts = append(parts, fmt.Sprintf("⬆️*%d", updateCnt))
+	}
+	return strings.Join(parts, "/")
 }
 
-func weeklyTitle(vehicleName string, distance float64, driveCnt, chargeCnt int, view string) string {
-	km := FormatDistanceTitle(distance)
-	if view == "detail" {
-		km = FormatDistanceTitleOneDecimal(distance)
+func buildSummaryTitle(driveCnt, chargeCnt, updateCnt int, vehicleName string, distance, kwhAdded float64) string {
+	v := strings.TrimSpace(vehicleName)
+	if v == "" {
+		v = "Tesla"
 	}
-	switch view {
-	case "compact":
-		if km == "" {
-			km = "0km"
+	core := summarySegments(driveCnt, chargeCnt, updateCnt)
+	mid := ""
+	onlyDrive := driveCnt > 0 && chargeCnt == 0 && updateCnt == 0
+	onlyCharge := chargeCnt > 0 && driveCnt == 0 && updateCnt == 0
+	if onlyDrive {
+		if km := FormatDistanceTitle(distance); km != "" {
+			mid = "/" + km
 		}
-		return fmt.Sprintf("📊 本周 · %s · %d🚗 · %d⚡", km, driveCnt, chargeCnt)
-	case "detail":
-		if km == "" {
-			km = "0.0km"
+	} else if onlyCharge {
+		if k := FormatKWhTitle(kwhAdded); k != "" {
+			mid = "/" + k
 		}
-		return fmt.Sprintf("📊 %s 周报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
-	default:
-		if km == "" {
-			km = "0km"
-		}
-		return fmt.Sprintf("📊 %s 周报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
 	}
+	if core == "" {
+		if mid != "" {
+			return strings.TrimPrefix(mid, "/") + " - " + v
+		}
+		return v
+	}
+	return core + mid + " - " + v
 }
 
-func monthlyTitle(vehicleName string, distance float64, driveCnt, chargeCnt int, view string) string {
-	km := FormatDistanceTitle(distance)
-	if view == "detail" {
-		km = FormatDistanceTitleOneDecimal(distance)
-	}
-	switch view {
-	case "compact":
-		if km == "" {
-			km = "0km"
-		}
-		return fmt.Sprintf("📊 本月 · %s · %d🚗 · %d⚡", km, driveCnt, chargeCnt)
-	case "detail":
-		if km == "" {
-			km = "0.0km"
-		}
-		return fmt.Sprintf("📊 %s 月报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
-	default:
-		if km == "" {
-			km = "0km"
-		}
-		return fmt.Sprintf("📊 %s 月报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
-	}
+func dailyTitle(vehicleName string, d model.DailySummary) string {
+	return buildSummaryTitle(d.DriveCount, d.ChargeCount, d.UpdateCount, vehicleName, d.Distance, d.KwhAdded)
+}
+
+func weeklyTitle(vehicleName string, driveCnt, chargeCnt, updateCnt int, distance, kwhAdded float64) string {
+	return buildSummaryTitle(driveCnt, chargeCnt, updateCnt, vehicleName, distance, kwhAdded)
+}
+
+func monthlyTitle(vehicleName string, driveCnt, chargeCnt, updateCnt int, distance, kwhAdded float64) string {
+	return buildSummaryTitle(driveCnt, chargeCnt, updateCnt, vehicleName, distance, kwhAdded)
 }
 
 func dailyLocation(d model.DailySummary) string {

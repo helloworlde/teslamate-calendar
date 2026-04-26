@@ -16,7 +16,7 @@ func TestClientWithMockServer(t *testing.T) {
 			_, _ = w.Write([]byte(`{"ok":true}`))
 		case "/api/v1/cars":
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"data":{"cars":[{"id":1,"name":"M3"}]}}`))
+			_, _ = w.Write([]byte(`{"data":{"cars":[{"car_id":1,"name":"M3","car_details":{"vin":"","model":null}}]}}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

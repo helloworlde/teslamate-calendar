@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"teslamate-calendar/internal/calendar"
-	"teslamate-calendar/internal/client"
-	"teslamate-calendar/internal/config"
-	"teslamate-calendar/internal/model"
-	"teslamate-calendar/internal/util"
+	"github.com/helloworlde/teslamate-calendar/internal/calendar"
+	"github.com/helloworlde/teslamate-calendar/internal/client"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/util"
 )
 
 type CalendarType string
@@ -36,7 +36,6 @@ type QueryParams struct {
 	Timezone    string
 	MinDistance string
 	MaxDistance string
-	Lang        string
 	Detail      bool
 	View        string
 	VehicleName string
@@ -82,10 +81,6 @@ func ParseQuery(v url.Values, cfg config.Config) QueryParams {
 			detail = b
 		}
 	}
-	lang := strings.TrimSpace(v.Get("lang"))
-	if lang == "" {
-		lang = "zh-CN"
-	}
 	vehicleName := strings.TrimSpace(v.Get("vehicleName"))
 	rng := strings.TrimSpace(strings.ToLower(v.Get("range")))
 	if rng == "" {
@@ -108,7 +103,6 @@ func ParseQuery(v url.Values, cfg config.Config) QueryParams {
 		Timezone:    tz,
 		MinDistance: strings.TrimSpace(v.Get("minDistance")),
 		MaxDistance: strings.TrimSpace(v.Get("maxDistance")),
-		Lang:        lang,
 		Detail:      detail,
 		View:        view,
 		VehicleName: vehicleName,
@@ -117,9 +111,6 @@ func ParseQuery(v url.Values, cfg config.Config) QueryParams {
 }
 
 func (s *CalendarService) CalendarICS(ctx context.Context, key string, carID string, typ CalendarType, q QueryParams) (string, error) {
-	if !s.cfg.CalendarFeedEnable {
-		return "", errors.New("calendar feed disabled")
-	}
 	if q.Days > s.cfg.MaxDays {
 		return "", fmt.Errorf("days exceeds MAX_DAYS: %d", s.cfg.MaxDays)
 	}
@@ -151,8 +142,7 @@ func (s *CalendarService) CalendarICS(ctx context.Context, key string, carID str
 }
 
 func (s *CalendarService) buildICS(ctx context.Context, carID string, typ CalendarType, q QueryParams) (string, error) {
-	gs, _ := s.client.GetGlobalSettings(ctx)
-	dash := s.dashboardBase(gs)
+	tmpl := s.cfg.TeslaMateDashboardURLTemplate
 	carName := "Tesla"
 	if car, err := s.client.GetCar(ctx, carID); err == nil {
 		carName = resolveVehicleName(car, q.VehicleName)
@@ -177,7 +167,7 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 			return "", mapUpstreamErr(err)
 		}
 		if typ == CalendarAll || typ == CalendarDrives {
-			events = append(events, calendar.DriveEvents(carID, carName, drives, q.View, q.Detail, tr.Loc, dash, s.cfg.TeslaMateDriveDashboardPath)...)
+			events = append(events, calendar.DriveEvents(carID, carName, drives, q.View, q.Detail, tr.Loc, tmpl)...)
 		}
 		if typ == CalendarDaily || typ == CalendarAll {
 			charges, err := s.client.ListCharges(ctx, carID, query)
@@ -189,21 +179,21 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 			if typ == CalendarDaily {
 				switch q.Range {
 				case "week":
-					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				case "month":
-					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				default:
-					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, s.cfg.DailyIncludeItems, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				}
 			}
 			if typ == CalendarAll {
 				switch q.Range {
 				case "week":
-					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				case "month":
-					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				default:
-					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, s.cfg.DailyIncludeItems, dash, s.cfg.TeslaMateSummaryDashboardPath)...)
+					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
 				}
 			}
 		}
@@ -213,14 +203,14 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 		if err != nil {
 			return "", mapUpstreamErr(err)
 		}
-		events = append(events, calendar.ChargeEvents(carID, carName, charges, q.View, q.Detail, tr.Loc, dash, s.cfg.TeslaMateChargeDashboardPath)...)
+		events = append(events, calendar.ChargeEvents(carID, carName, charges, q.View, q.Detail, tr.Loc, tmpl)...)
 	}
 	if typ == CalendarAll || typ == CalendarUpdates {
 		updates, err := s.client.ListUpdates(ctx, carID)
 		if err != nil {
 			return "", mapUpstreamErr(err)
 		}
-		events = append(events, calendar.UpdateEvents(carID, carName, updates, q.Detail, tr.Loc, dash, s.cfg.TeslaMateUpdateDashboardPath)...)
+		events = append(events, calendar.UpdateEvents(carID, carName, updates, q.Detail, tr.Loc, tmpl)...)
 	}
 	return calendar.BuildCalendar(calendarName(carName, typ, q.Range), tr.Loc.String(), events), nil
 }
@@ -229,7 +219,7 @@ func (s *CalendarService) ListCars(ctx context.Context) ([]model.Car, error) {
 	return s.client.ListCars(ctx)
 }
 
-func (s *CalendarService) GetCar(ctx context.Context, carID string) (map[string]any, error) {
+func (s *CalendarService) GetCar(ctx context.Context, carID string) (model.CarProfile, error) {
 	return s.client.GetCar(ctx, carID)
 }
 
@@ -270,16 +260,6 @@ func (s *CalendarService) setCache(key, value string) {
 	}
 }
 
-func (s *CalendarService) dashboardBase(gs model.GlobalSettings) string {
-	if u := strings.TrimSpace(s.cfg.TeslaMateDashboardBaseURL); u != "" {
-		return strings.TrimRight(u, "/")
-	}
-	if u := model.GrafanaBaseURLFromGlobalSettings(gs); u != "" {
-		return strings.TrimRight(strings.TrimSpace(u), "/")
-	}
-	return ""
-}
-
 func mapUpstreamErr(err error) error {
 	msg := err.Error()
 	if strings.Contains(msg, "timeout") {
@@ -309,34 +289,21 @@ func calendarName(carName string, typ CalendarType, rng string) string {
 	}
 }
 
-func stringAny(v any) string {
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(s)
-}
-
-func resolveVehicleName(car map[string]any, override string) string {
+func resolveVehicleName(car model.CarProfile, override string) string {
 	if strings.TrimSpace(override) != "" {
 		return strings.TrimSpace(override)
 	}
 	candidates := []string{
-		stringAny(car["name"]),
-		stringAny(car["display_name"]),
-		stringAny(car["displayName"]),
-		stringAny(car["vehicle_name"]),
-		stringAny(car["vehicleName"]),
-		stringAny(car["car_name"]),
-		stringAny(car["carName"]),
-		stringAny(car["model"]),
+		strings.TrimSpace(car.Name),
+		strings.TrimSpace(car.DisplayName),
+		strings.TrimSpace(car.Model),
 	}
 	for _, name := range candidates {
 		if name != "" {
 			return name
 		}
 	}
-	vin := stringAny(car["vin"])
+	vin := strings.TrimSpace(car.VIN)
 	if len(vin) >= 6 {
 		return "Tesla-" + vin[len(vin)-6:]
 	}

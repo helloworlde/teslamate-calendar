@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"teslamate-calendar/internal/config"
-	"teslamate-calendar/internal/service"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/service"
 )
 
 type Handlers struct {
@@ -70,8 +70,6 @@ func (h *Handlers) Calendar(typ service.CalendarType) gin.HandlerFunc {
 				c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 			case strings.Contains(msg, "gateway timeout"):
 				c.JSON(http.StatusGatewayTimeout, gin.H{"error": msg})
-			case strings.Contains(msg, "disabled"):
-				c.JSON(http.StatusForbidden, gin.H{"error": msg})
 			default:
 				c.JSON(http.StatusBadGateway, gin.H{"error": msg})
 			}

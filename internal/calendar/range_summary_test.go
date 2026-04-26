@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestRangeSummariesDayWeekMonth(t *testing.T) {
@@ -19,9 +19,9 @@ func TestRangeSummariesDayWeekMonth(t *testing.T) {
 		{StartDate: &s1, EndDate: &e1, Distance: &d1},
 		{StartDate: &s2, EndDate: &e2, Distance: &d2},
 	}, nil, nil, loc)
-	dayEvents := DailySummaryEvents("1", "Model 3", rows, loc, "normal", true, true, "", "")
-	weekEvents := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", true, "", "")
-	monthEvents := MonthlySummaryEvents("1", "Model 3", rows, loc, "normal", true, "", "")
+	dayEvents := DailySummaryEvents("1", "Model 3", rows, loc, "normal", true, "")
+	weekEvents := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", true, "")
+	monthEvents := MonthlySummaryEvents("1", "Model 3", rows, loc, "normal", true, "")
 	if len(dayEvents) != 2 {
 		t.Fatalf("day range unexpected events: %d", len(dayEvents))
 	}

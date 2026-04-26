@@ -1,12 +1,21 @@
-FROM golang:1.22 AS builder
-WORKDIR /app
+ARG GO_VERSION=1.22
+
+FROM golang:${GO_VERSION}-bookworm AS builder
+WORKDIR /src
+
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/teslamate-calendar ./cmd/teslamate-calendar
 
-FROM gcr.io/distroless/static-debian12
-WORKDIR /app
-COPY --from=builder /out/teslamate-calendar /usr/local/bin/teslamate-calendar
+COPY . .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" \
+    -o /out/teslamate-calendar ./cmd/teslamate-calendar
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /
+COPY --from=builder /out/teslamate-calendar /teslamate-calendar
 EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/teslamate-calendar"]
+USER nonroot:nonroot
+ENTRYPOINT ["/teslamate-calendar"]

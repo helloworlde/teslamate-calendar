@@ -3,9 +3,16 @@ package model
 import "time"
 
 type Car struct {
-	ID   int64          `json:"id"`
-	Name string         `json:"name"`
-	Raw  map[string]any `json:"-"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type CarProfile struct {
+	ID          int64  `json:"id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	VIN         string `json:"vin,omitempty"`
+	Model       string `json:"model,omitempty"`
 }
 
 type Drive struct {
@@ -29,7 +36,7 @@ type Drive struct {
 	StartLng          *float64
 	EndLat            *float64
 	EndLng            *float64
-	Raw               map[string]any
+	HasRoute          bool
 }
 
 type Charge struct {
@@ -57,7 +64,6 @@ type Update struct {
 	EndDate      *time.Time
 	Status       string
 	ReleaseNotes string
-	Raw          map[string]any
 }
 
 type DailySummary struct {
@@ -81,5 +87,5 @@ type DailySummary struct {
 }
 
 type GlobalSettings struct {
-	Raw map[string]any
+	GrafanaURL string `json:"grafana_url,omitempty"`
 }

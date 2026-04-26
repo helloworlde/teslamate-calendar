@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestDailySummaryAggregation(t *testing.T) {

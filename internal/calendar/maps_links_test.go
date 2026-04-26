@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestGoogleMapsURLs(t *testing.T) {
@@ -24,11 +24,12 @@ func TestGoogleMapsURLs(t *testing.T) {
 	}
 }
 
-func TestDashboardURL(t *testing.T) {
+func TestRenderDashboardURL(t *testing.T) {
 	start := time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
-	u := DashboardURL("https://grafana.example.com", "/d/tesla/drives", "1", start, end)
-	if !strings.Contains(u, "var-car_id=1") || !strings.Contains(u, "from=") {
+	tmpl := "https://grafana.example.com/d/x?from={from}&to={to}&var-car_id={car_id}&var-range={range}&var-event_id={event_id}"
+	u := RenderDashboardURL(tmpl, timesToDashboardArgs("1", "day", "e1", start, end))
+	if !strings.Contains(u, "var-car_id=1") || !strings.Contains(u, "from=") || !strings.Contains(u, "var-range=day") {
 		t.Fatalf("dashboard url invalid: %s", u)
 	}
 }
@@ -60,7 +61,8 @@ func TestDriveAndChargeEventsContainLinks(t *testing.T) {
 		EndLat:       &lat2,
 		EndLng:       &lng2,
 	}}
-	ev := DriveEvents("1", "Model 3", d, "normal", true, time.UTC, "https://grafana.example.com", "/d/drives")
+	tpl := "https://grafana.example.com?from={from}&to={to}&var-car_id={car_id}"
+	ev := DriveEvents("1", "Model 3", d, "normal", true, time.UTC, tpl)
 	if len(ev) != 1 || !strings.Contains(ev[0].Description, "🔗 相关链接") {
 		t.Fatalf("drive links missing")
 	}
@@ -73,7 +75,7 @@ func TestDriveAndChargeEventsContainLinks(t *testing.T) {
 		Lat:       &lat1,
 		Lng:       &lng1,
 	}}
-	ec := ChargeEvents("1", "Model 3", c, "normal", true, time.UTC, "https://grafana.example.com", "/d/charges")
+	ec := ChargeEvents("1", "Model 3", c, "normal", true, time.UTC, tpl)
 	if len(ec) != 1 || !strings.Contains(ec[0].Description, "🔗 相关链接") {
 		t.Fatalf("charge links missing")
 	}

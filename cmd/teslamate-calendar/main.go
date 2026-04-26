@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"teslamate-calendar/internal/api"
-	"teslamate-calendar/internal/client"
-	"teslamate-calendar/internal/config"
-	"teslamate-calendar/internal/service"
+	"github.com/helloworlde/teslamate-calendar/internal/api"
+	"github.com/helloworlde/teslamate-calendar/internal/client"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/service"
 )
 
 func main() {

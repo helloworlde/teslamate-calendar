@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestFormatDurationZH(t *testing.T) {
@@ -36,9 +36,9 @@ func TestDriveDescriptionNoPolylineLeak(t *testing.T) {
 	long := strings.Repeat("A", 100)
 	polyline := "abcdefghijklmnopqrstuvwxyz"
 	d := model.Drive{
-		StartDate:   ptrTime(time.Date(2026, 4, 24, 9, 33, 0, 0, time.Local)),
-		EndDate:     ptrTime(time.Date(2026, 4, 24, 10, 0, 0, 0, time.Local)),
-		Raw:         map[string]any{"polyline": long},
+		StartDate:    ptrTime(time.Date(2026, 4, 24, 9, 33, 0, 0, time.Local)),
+		EndDate:      ptrTime(time.Date(2026, 4, 24, 10, 0, 0, 0, time.Local)),
+		HasRoute:     true,
 		StartAddress: "A",
 		EndAddress:   "B",
 	}
@@ -49,11 +49,10 @@ func TestDriveDescriptionNoPolylineLeak(t *testing.T) {
 }
 
 func TestDriveDescriptionRouteLineWhenPolylineSet(t *testing.T) {
-	long := strings.Repeat("B", 32)
 	d := model.Drive{
-		StartDate:   ptrTime(time.Date(2026, 4, 24, 9, 33, 0, 0, time.Local)),
-		EndDate:     ptrTime(time.Date(2026, 4, 24, 10, 0, 0, 0, time.Local)),
-		Raw:         map[string]any{"polyline": long},
+		StartDate:    ptrTime(time.Date(2026, 4, 24, 9, 33, 0, 0, time.Local)),
+		EndDate:      ptrTime(time.Date(2026, 4, 24, 10, 0, 0, 0, time.Local)),
+		HasRoute:     true,
 		StartAddress: "A",
 		EndAddress:   "B",
 	}

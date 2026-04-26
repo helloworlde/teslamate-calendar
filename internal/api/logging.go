@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
 )
 
 func ConfigureSlog(cfg config.Config) {

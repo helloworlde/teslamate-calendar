@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"teslamate-calendar/internal/config"
+	"github.com/helloworlde/teslamate-calendar/internal/config"
 )
 
 func ConstantTimeEquals(a, b string) bool {
@@ -17,24 +17,10 @@ func ConstantTimeEquals(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-func RequireToken(cfg config.Config, fromURL bool) gin.HandlerFunc {
+func RequireCalendarPathToken(cfg config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cfg.CalendarFeedToken == "" {
-			c.Next()
-			return
-		}
-		var token string
-		if fromURL {
-			token = c.Param("Token")
-		} else {
-			auth := c.GetHeader("Authorization")
-			if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
-				token = strings.TrimSpace(auth[7:])
-			} else {
-				token = strings.TrimSpace(auth)
-			}
-		}
-		if !ConstantTimeEquals(token, cfg.CalendarFeedToken) {
+		tok := strings.TrimSpace(c.Param("Token"))
+		if !ConstantTimeEquals(tok, cfg.CalendarFeedToken) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}

@@ -9,18 +9,19 @@ import (
 )
 
 type Event struct {
-	UID         string
-	DTStamp     time.Time
-	Start       time.Time
-	End         time.Time
-	AllDay      bool
-	AllDayDate  time.Time
-	AllDayEnd   time.Time
-	Summary     string
-	Description string
-	Location    string
-	Geo         string
-	URL         string
+	UID             string
+	DTStamp         time.Time
+	Start           time.Time
+	End             time.Time
+	AllDay          bool
+	AllDayDate      time.Time
+	AllDayEnd       time.Time
+	Summary         string
+	Description     string
+	HTMLDescription string
+	Location        string
+	Geo             string
+	URL             string
 }
 
 func StableUID(parts ...string) string {
@@ -33,10 +34,16 @@ func StableUID(parts ...string) string {
 }
 
 func BuildCalendar(name, timezone string, events []Event) string {
+	loc := time.Local
+	if strings.TrimSpace(timezone) != "" {
+		if l, err := time.LoadLocation(timezone); err == nil {
+			loc = l
+		}
+	}
 	lines := []string{
 		"BEGIN:VCALENDAR",
 		"VERSION:2.0",
-		"PRODID:-//TeslaMate Calendar//teslamate-calendar//CN",
+		"PRODID:-//TeslaMate Calendar//github.com/helloworlde/teslamate-calendar//CN",
 		"CALSCALE:GREGORIAN",
 		"METHOD:PUBLISH",
 		"X-WR-CALNAME:" + EscapeText(name),
@@ -55,13 +62,17 @@ func BuildCalendar(name, timezone string, events []Event) string {
 		lines = append(lines, "UID:"+EscapeText(uid))
 		lines = append(lines, "DTSTAMP:"+stamp.UTC().Format("20060102T150405Z"))
 		if e.AllDay {
-			start := e.AllDayDate.In(time.UTC).Format("20060102")
-			end := e.AllDayEnd.In(time.UTC).Format("20060102")
-			if end == "" || end <= start {
-				end = e.AllDayDate.AddDate(0, 0, 1).In(time.UTC).Format("20060102")
+			ds := e.AllDayDate.In(loc)
+			de := e.AllDayEnd.In(loc)
+			start := time.Date(ds.Year(), ds.Month(), ds.Day(), 0, 0, 0, 0, loc)
+			endExcl := time.Date(de.Year(), de.Month(), de.Day(), 0, 0, 0, 0, loc)
+			startS := start.Format("20060102")
+			endS := endExcl.Format("20060102")
+			if endS <= startS {
+				endS = start.AddDate(0, 0, 1).Format("20060102")
 			}
-			lines = append(lines, "DTSTART;VALUE=DATE:"+start)
-			lines = append(lines, "DTEND;VALUE=DATE:"+end)
+			lines = append(lines, "DTSTART;VALUE=DATE:"+startS)
+			lines = append(lines, "DTEND;VALUE=DATE:"+endS)
 		} else {
 			lines = append(lines, "DTSTART:"+e.Start.UTC().Format("20060102T150405Z"))
 			end := e.End
@@ -72,6 +83,9 @@ func BuildCalendar(name, timezone string, events []Event) string {
 		}
 		lines = append(lines, "SUMMARY:"+EscapeText(e.Summary))
 		lines = append(lines, "DESCRIPTION:"+EscapeText(e.Description))
+		if strings.TrimSpace(e.HTMLDescription) != "" {
+			lines = append(lines, "X-ALT-DESC;FMTTYPE=text/html:"+EscapeText(e.HTMLDescription))
+		}
 		if strings.TrimSpace(e.Location) != "" {
 			lines = append(lines, "LOCATION:"+EscapeText(e.Location))
 		}

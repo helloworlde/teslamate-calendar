@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestDailyDescriptionHideZeroChargeFields(t *testing.T) {
@@ -16,7 +16,7 @@ func TestDailyDescriptionHideZeroChargeFields(t *testing.T) {
 		Distance:     16.2,
 		DriveSeconds: 2400,
 	}}
-	events := DailySummaryEvents("1", "Model 3", rows, time.Local, "normal", true, true, "", "")
+	events := DailySummaryEvents("1", "Model 3", rows, time.Local, "normal", true, "")
 	if len(events) != 1 {
 		t.Fatalf("unexpected events: %d", len(events))
 	}
@@ -38,7 +38,7 @@ func TestDailyDescriptionStructure(t *testing.T) {
 		KwhAdded:      20,
 		ChargeDetails: []string{"21:11-07:38\n+20.0 kWh · 16%→100% · 627 min"},
 	}}
-	events := DailySummaryEvents("1", "Model 3", rows, time.Local, "detail", true, true, "", "")
+	events := DailySummaryEvents("1", "Model 3", rows, time.Local, "detail", true, "")
 	desc := events[0].Description
 	for _, part := range []string{"━━━━━━━━━━━━", "📌 今日概览", "🚗 行程", "⚡ 充电"} {
 		if !strings.Contains(desc, part) {
@@ -56,7 +56,7 @@ func TestWeeklyDescriptionSections(t *testing.T) {
 		Distance:    5,
 		ChargeCount: 0,
 	}}
-	weeks := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", true, "", "")
+	weeks := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", true, "")
 	if len(weeks) != 1 {
 		t.Fatalf("expected 1 week, got %d", len(weeks))
 	}
@@ -64,7 +64,7 @@ func TestWeeklyDescriptionSections(t *testing.T) {
 	if !strings.Contains(d, "📌 本周概览") || !strings.Contains(d, "📅 每日概览") {
 		t.Fatalf("missing weekly sections: %s", d)
 	}
-	compact := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", false, "", "")
+	compact := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", false, "")
 	if len(compact) != 1 {
 		t.Fatal("expected 1 week when detail false")
 	}

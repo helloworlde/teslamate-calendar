@@ -6,18 +6,57 @@ import (
 	"time"
 )
 
-func DashboardURL(baseURL, path, carID string, start, end time.Time) string {
-	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
+type DashboardArgs struct {
+	FromMs  int64
+	ToMs    int64
+	CarID   string
+	Range   string
+	EventID string
+}
+
+func eventIDString(id any) string {
+	if id == nil {
 		return ""
 	}
-	if end.IsZero() || !end.After(start) {
-		end = start.Add(time.Hour)
+	s := strings.TrimSpace(fmt.Sprintf("%v", id))
+	if s == "" || s == "<nil>" {
+		return ""
 	}
-	if strings.TrimSpace(path) == "" {
-		return baseURL
+	return s
+}
+
+func RenderDashboardURL(template string, a DashboardArgs) string {
+	t := strings.TrimSpace(template)
+	if t == "" {
+		return ""
 	}
-	return fmt.Sprintf("%s%s?from=%d&to=%d&var-car_id=%s", baseURL, path, start.UnixMilli(), end.UnixMilli(), carID)
+	to := a.ToMs
+	if to <= a.FromMs {
+		to = a.FromMs + 60*60*1000
+	}
+	rep := strings.NewReplacer(
+		"{from}", fmt.Sprintf("%d", a.FromMs),
+		"{to}", fmt.Sprintf("%d", to),
+		"{car_id}", a.CarID,
+		"{range}", a.Range,
+		"{event_id}", a.EventID,
+	)
+	return rep.Replace(t)
+}
+
+func timesToDashboardArgs(carID, rangeKey, eventID string, start, end time.Time) DashboardArgs {
+	fromMs := start.UnixMilli()
+	toMs := end.UnixMilli()
+	if toMs <= fromMs {
+		toMs = fromMs + 60*1000
+	}
+	return DashboardArgs{
+		FromMs:  fromMs,
+		ToMs:    toMs,
+		CarID:   carID,
+		Range:   rangeKey,
+		EventID: eventID,
+	}
 }
 
 func AppendLinksSection(desc, mapURL, dashboardURL string) string {

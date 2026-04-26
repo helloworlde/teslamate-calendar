@@ -1,12 +1,16 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/helloworlde/teslamate-calendar/internal/model"
+)
 
 func TestResolveVehicleNamePriority(t *testing.T) {
-	car := map[string]any{
-		"name":         "Model 3",
-		"display_name": "DisplayName",
-		"car_name":     "CarName",
+	car := model.CarProfile{
+		Name:        "Model 3",
+		DisplayName: "DisplayName",
+		Model:       "Model",
 	}
 	if got := resolveVehicleName(car, ""); got != "Model 3" {
 		t.Fatalf("unexpected name: %s", got)
@@ -14,18 +18,18 @@ func TestResolveVehicleNamePriority(t *testing.T) {
 }
 
 func TestResolveVehicleNameFallbackAndOverride(t *testing.T) {
-	car := map[string]any{
-		"display_name": "Display",
-		"vin":          "LRWABCDEFG1234567",
+	car := model.CarProfile{
+		DisplayName: "Display",
+		VIN:         "LRWABCDEFG1234567",
 	}
 	if got := resolveVehicleName(car, "我的ModelY"); got != "我的ModelY" {
 		t.Fatalf("override not applied: %s", got)
 	}
-	car2 := map[string]any{"vin": "LRWABCDEFG1234567"}
+	car2 := model.CarProfile{VIN: "LRWABCDEFG1234567"}
 	if got := resolveVehicleName(car2, ""); got != "Tesla-234567" {
 		t.Fatalf("vin fallback unexpected: %s", got)
 	}
-	if got := resolveVehicleName(map[string]any{}, ""); got != "Tesla" {
+	if got := resolveVehicleName(model.CarProfile{}, ""); got != "Tesla" {
 		t.Fatalf("final fallback unexpected: %s", got)
 	}
 }

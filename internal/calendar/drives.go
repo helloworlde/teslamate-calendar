@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
-func DriveEvents(carID, vehicleName string, drives []model.Drive, view string, detail bool, loc *time.Location, dashboardBaseURL, dashboardPath string) []Event {
+func DriveEvents(carID, vehicleName string, drives []model.Drive, view string, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	_ = detail
 	out := make([]Event, 0, len(drives))
 	if loc == nil {
@@ -32,7 +32,8 @@ func DriveEvents(carID, vehicleName string, drives []model.Drive, view string, d
 			mapURL = GoogleSearchURL(location)
 		}
 		desc := BuildDriveDescription(vehicleName, d, loc)
-		desc = AppendLinksSection(desc, mapURL, DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end))
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "drives", eventIDString(d.ID), start, end))
+		desc = AppendLinksSection(desc, mapURL, dash)
 		uid := UIDWithFallback(
 			fmt.Sprintf("teslamate-calendar-car-%s-drive-", carID),
 			d.ID,
@@ -100,13 +101,6 @@ func buildDriveSummary(d model.Drive, vehicleName, from, to string, start, end t
 	}
 }
 
-func fallback(v, def string) string {
-	if strings.TrimSpace(v) == "" {
-		return def
-	}
-	return v
-}
-
 func drivePointName(d model.Drive, isStart bool) string {
 	if isStart {
 		if strings.TrimSpace(d.StartAddress) != "" {
@@ -124,28 +118,6 @@ func drivePointName(d model.Drive, isStart bool) string {
 		return d.EndGeofence
 	}
 	return "终点"
-}
-
-func driveDurationText(d model.Drive, start, end time.Time) string {
-	if d.DurationSeconds != nil && *d.DurationSeconds > 0 {
-		return FormatDurationZH(*d.DurationSeconds)
-	}
-	sec := end.Sub(start).Seconds()
-	if sec > 0 {
-		return FormatDurationZH(sec)
-	}
-	return ""
-}
-
-func minutesText(d model.Drive, start, end time.Time) string {
-	sec := end.Sub(start).Seconds()
-	if d.DurationSeconds != nil && *d.DurationSeconds > 0 {
-		sec = *d.DurationSeconds
-	}
-	if sec <= 0 {
-		return ""
-	}
-	return FormatDurationZH(sec)
 }
 
 func geoValue(lat, lng *float64) string {

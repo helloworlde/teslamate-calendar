@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
-func ChargeEvents(carID, vehicleName string, charges []model.Charge, view string, detail bool, loc *time.Location, dashboardBaseURL, dashboardPath string) []Event {
+func ChargeEvents(carID, vehicleName string, charges []model.Charge, view string, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	_ = detail
 	if loc == nil {
 		loc = time.Local
@@ -30,7 +30,8 @@ func ChargeEvents(carID, vehicleName string, charges []model.Charge, view string
 		if mapURL == "" {
 			mapURL = GoogleSearchURL(location)
 		}
-		desc = AppendLinksSection(desc, mapURL, DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end))
+		dash := RenderDashboardURL(dashboardTmpl, timesToDashboardArgs(carID, "charges", eventIDString(c.ID), start, end))
+		desc = AppendLinksSection(desc, mapURL, dash)
 		uid := UIDWithFallback(
 			fmt.Sprintf("teslamate-calendar-car-%s-charge-", carID),
 			c.ID,

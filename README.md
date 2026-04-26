@@ -1,77 +1,84 @@
 # teslamate-calendar
 
-`teslamate-calendar` 是一个独立 Go 服务，只通过 `teslamateapi` HTTP API 读取数据并输出 RFC5545 兼容 ICS 订阅源。
+[Module](https://github.com/helloworlde/teslamate-calendar)：`github.com/helloworlde/teslamate-calendar`
 
-## 架构
+`teslamate-calendar` 通过 `teslamateapi` HTTP API 读取数据并输出 **RFC 5545** iCalendar（`text/calendar`）。无数据库、无后台任务、无 Redis。
 
-Calendar Client -> teslamate-calendar -> teslamateapi -> TeslaMate data
+**镜像：**
+
+- `ghcr.io/helloworlde/teslamate-calendar:latest`（`main` 构建）
+- 其他标签见 [Packages](https://github.com/helloworlde/teslamate-calendar/pkgs/container/teslamate-calendar)
 
 ## 环境变量
 
-- `LISTEN_ADDR` 默认 `:8080`
-- `TESLAMATE_API_BASE_URL` 必填，**只需协议 + 主机（含端口）**，例如 `http://teslamateapi:8080`；**不要**写路径（如 `/api`），服务会固定请求 `.../api/v1/...`
-- `TESLAMATE_API_TOKEN` 可选
-- `TESLAMATE_API_AUTH_HEADER` 默认 `Authorization`
-- `TESLAMATE_API_AUTH_SCHEME` 默认 `Bearer`
-- `CALENDAR_FEED_TOKEN` 默认 `tesla`，可通过环境变量覆盖
-- `DEFAULT_DAYS` 默认 `90`
-- `MAX_DAYS` 默认 `365`
-- `DEFAULT_TIMEZONE` 默认 `Asia/Shanghai`
-- `DEFAULT_VIEW` 默认 `normal`，支持 `compact|normal|detail`
-- `CACHE_TTL_SECONDS` 默认 `1800`
-- `REQUEST_TIMEOUT_SECONDS` 默认 `10`
-- `LOG_LEVEL` 默认 `info`
-- `MAP_PROVIDER` 默认 `google`
-- `TESLAMATE_DASHBOARD_BASE_URL` 可选；**未设置时**从 `GET /api/v1/globalsettings` 返回的 `data.settings.teslamate_urls.grafana_url` 读取作为 Grafana 看板根地址
-- `TESLAMATE_DRIVE_DASHBOARD_PATH` 等 path 项可选，与上述根地址拼接
+| 变量 | 说明 |
+|------|------|
+| `LISTEN_ADDR` | 监听地址，默认 `:8080` |
+| `TESLAMATE_API_BASE_URL` | **必填**，teslamateapi 根 URL（仅协议+主机+端口，内部使用 `/api/v1`） |
+| `TESLAMATE_API_TOKEN` | 上游 Bearer token（可空） |
+| `TESLAMATE_API_AUTH_HEADER` / `TESLAMATE_API_AUTH_SCHEME` | 上游鉴权，默认 `Authorization` + `Bearer` |
+| `CALENDAR_FEED_TOKEN` | **必填**，无默认值；与订阅 URL 路径中的 Token 必须一致。请使用长随机串，**不要使用示例字面量作为生产值** |
+| `DEFAULT_DAYS` / `MAX_DAYS` | 回溯与上限天数 |
+| `DEFAULT_TIMEZONE` | IANA 时区，用于日界与事件展示 |
+| `DEFAULT_VIEW` | `compact` / `normal` / `detail` |
+| `CACHE_TTL_SECONDS` | 日历响应缓存 |
+| `REQUEST_TIMEOUT_SECONDS` | 请求上游超时 |
+| `LOG_LEVEL` | 日志级别 |
+| `TESLAMATE_DASHBOARD_URL_TEMPLATE` | 可选。Grafana 看板 URL 模板。占位符：`{from}` `{to}`（Unix 毫秒）、`{car_id}`、`{range}`、`{event_id}`。空则不附加「TeslaMate 看板」链接。 |
 
-## Docker 部署
+不读取 TeslaMate `globalsettings` 中的 Grafana 地址，避免隐式行为。
 
-```bash
-docker build -t teslamate-calendar:latest .
-docker run --rm -p 8080:8080 \
-  -e TESLAMATE_API_BASE_URL="http://teslamateapi:8080" \
-  -e CALENDAR_FEED_TOKEN="tesla" \
-  teslamate-calendar:latest
-```
+## HTTP 接口
 
-## docker-compose 部署
+- `GET /healthz` `GET /readyz` `GET /ping`
+- `GET /cars` `GET /cars/{CarID}`（不校验 `CALENDAR_FEED_TOKEN`；上游仍由 teslamateapi 保护）
+- `GET /calendar/token/{Token}/cars/{CarID}/daily.ics`（`range=day\|week\|month`）
+- `GET .../drives.ics` `.../charges.ics` `.../updates.ics` `.../all.ics`
+- `GET /openapi.json` `GET /swagger/index.html` `GET /scalar`
 
-```bash
-docker compose up -d
-```
+路径中的 `Token` 须与 `CALENDAR_FEED_TOKEN` 一致。OpenAPI/Scalar 中 token 仅展示占位符 `change-me-to-random-token`，不会预填本机真实 secret。
 
-## 推荐订阅方式
+**不建议**默认在日历客户端中订阅 `all.ics`（体量大、更新频繁）；可按需使用单日/单类日历。
 
-- 日报（按天）：`http://localhost:8080/calendar/token/{token}/cars/1/daily.ics?range=day&view=normal&timezone=Asia/Shanghai`
-- 周报：`http://localhost:8080/calendar/token/{token}/cars/1/daily.ics?range=week&view=normal&timezone=Asia/Shanghai`
-- 月报：`http://localhost:8080/calendar/token/{token}/cars/1/daily.ics?range=month&view=normal&timezone=Asia/Shanghai`
-- 行程：`http://localhost:8080/calendar/token/{token}/cars/1/drives.ics?view=normal&timezone=Asia/Shanghai`
-- 充电：`http://localhost:8080/calendar/token/{token}/cars/1/charges.ics?view=normal&timezone=Asia/Shanghai`
-- 更新：`http://localhost:8080/calendar/token/{token}/cars/1/updates.ics?view=normal&timezone=Asia/Shanghai`
-- 全部：`http://localhost:8080/calendar/token/{token}/cars/1/all.ics?range=day&view=normal&timezone=Asia/Shanghai`
+## 富文本
 
-`all.ics` 仅作为高级订阅源，不推荐默认订阅（月视图会更杂乱）。
-
-## 车辆名称
-
-服务会自动从 `GET /api/v1/cars/:CarID` 推断显示名称，也支持 query 覆盖：
-
-- `/calendar/token/{token}/cars/1/daily.ics?vehicleName=Model%203`
+- 主字段为纯文本 `DESCRIPTION`（推荐所有客户端以可读性为准）。
+- 若未来在事件中填写 `HTMLDescription`，会多输出一行 `X-ALT-DESC;FMTTYPE=text/html`；**不保证** Apple / Google 等一定按 HTML 显示，多数环境仍按纯文本处理。
+- 当前业务逻辑**不填充** `HTMLDescription`。
 
 ## 地图链接
 
-- 行程：优先生成 Google 路线链接（起点->终点）
-- 充电：优先生成 Google 单点位置链接
-- 坐标缺失时回退到地点搜索链接
+- 有坐标时使用 HTTPS Google Maps（路线或点位）；无坐标时 HTTPS 搜索。不使用 `maps://`、Amap 等深链。
+- 各平台由浏览器或系统策略打开；**不保证**直接唤起「系统地图 App」。
+- 历史轨迹的完整展开应在 TeslaMate/Grafana 看板中查看，不会塞进短 URL。
 
-## TeslaMate 看板链接
+## Docker
 
-Grafana 根地址：优先 `TESLAMATE_DASHBOARD_BASE_URL`，否则使用 teslamateapi 全局设置中的 `grafana_url`。  
-支持用各 `TESLAMATE_*_DASHBOARD_PATH` 与根地址拼接，并自动附加 `from`/`to`/`var-car_id` 参数。
+```bash
+docker run -d \
+  --name teslamate-calendar \
+  -p 8088:8080 \
+  -e TESLAMATE_API_BASE_URL="http://teslamateapi:8080" \
+  -e CALENDAR_FEED_TOKEN="your-random-token" \
+  ghcr.io/helloworlde/teslamate-calendar:latest
+```
 
-## 文档地址
+`docker compose` 示例见 [docker-compose.yml](docker-compose.yml)。
 
-- Swagger: `http://localhost:8080/swagger/index.html`
-- Scalar: `http://localhost:8080/scalar`
-- OpenAPI JSON: `http://localhost:8080/openapi.json`
+本地构建：
+
+```bash
+docker build -t teslamate-calendar:local .
+```
+
+## 开发
+
+```bash
+export TESLAMATE_API_BASE_URL=http://localhost:4000
+export CALENDAR_FEED_TOKEN=dev-only-token
+go run ./cmd/teslamate-calendar
+```
+
+## License
+
+MIT

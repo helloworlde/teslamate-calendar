@@ -6,33 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func driveHasRouteRecorded(d model.Drive) bool {
-	if d.Raw == nil {
-		return false
-	}
-	keys := []string{"polyline", "osrm_polyline", "Polyline", "path"}
-	for _, k := range keys {
-		v, ok := d.Raw[k]
-		if !ok {
-			continue
-		}
-		switch s := v.(type) {
-		case string:
-			if len(strings.TrimSpace(s)) > 8 {
-				return true
-			}
-		}
-	}
-	if s := rawString(d.Raw, "route", "polyline"); len(strings.TrimSpace(s)) > 8 {
-		return true
-	}
-	return false
+	return d.HasRoute
 }
 
-func BuildDailyDescription(vehicleName string, d model.DailySummary, includeItems, detail bool, loc *time.Location) string {
+func BuildDailyDescription(vehicleName string, d model.DailySummary, detail bool, loc *time.Location) string {
 	if loc == nil {
 		loc = time.Local
 	}
@@ -77,13 +58,13 @@ func BuildDailyDescription(vehicleName string, d model.DailySummary, includeItem
 		lines = append(lines, Section("📌 今日概览", overview...)...)
 	}
 
-	if includeItems && d.DriveCount > 0 {
+	if d.DriveCount > 0 {
 		lines = append(lines, "", "━━━━━━━━━━━━", "🚗 行程", "━━━━━━━━━━━━")
 		for i, block := range d.DriveDetails {
 			lines = append(lines, formatNumberedBlock(i+1, block)...)
 		}
 	}
-	if includeItems && d.ChargeCount > 0 {
+	if d.ChargeCount > 0 {
 		lines = append(lines, "", "━━━━━━━━━━━━", "⚡ 充电", "━━━━━━━━━━━━")
 		for i, block := range d.ChargeDetails {
 			lines = append(lines, formatNumberedBlock(i+1, block)...)

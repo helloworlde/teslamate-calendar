@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"teslamate-calendar/internal/model"
+	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
 func TestDriveDescriptionKeySections(t *testing.T) {
@@ -80,7 +80,7 @@ func TestDailyICSRoundtrip(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("rows: %d", len(rows))
 	}
-	ev := DailySummaryEvents("1", "Model 3", rows, loc, "normal", true, true, "", "")
+	ev := DailySummaryEvents("1", "Model 3", rows, loc, "normal", true, "")
 	if len(ev) < 1 {
 		t.Fatalf("no events")
 	}
@@ -99,22 +99,22 @@ func TestDailyICSRoundtrip(t *testing.T) {
 func TestDailyDrivesOnlyNoChargeBlock(t *testing.T) {
 	day := time.Date(2026, 4, 24, 0, 0, 0, 0, time.Local)
 	rows := []model.DailySummary{{
-		Day:         day,
-		DriveCount:  1,
-		Distance:    10,
+		Day:          day,
+		DriveCount:   1,
+		Distance:     10,
 		DriveSeconds: 300,
 	}}
-	d := BuildDailyDescription("M3", rows[0], true, true, time.Local)
+	d := BuildDailyDescription("M3", rows[0], true, time.Local)
 	if strings.Contains(d, "⚡ 充电 0") {
 		t.Fatalf("no charge: %s", d)
 	}
 	rows2 := []model.DailySummary{{
-		Day:          day,
-		ChargeCount:  1,
-		KwhAdded:     5,
+		Day:           day,
+		ChargeCount:   1,
+		KwhAdded:      5,
 		ChargeSeconds: 300,
 	}}
-	d2 := BuildDailyDescription("M3", rows2[0], true, true, time.Local)
+	d2 := BuildDailyDescription("M3", rows2[0], true, time.Local)
 	if strings.Contains(d2, "🚗 行程 0") {
 		t.Fatalf("no drives: %s", d2)
 	}
