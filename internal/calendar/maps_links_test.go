@@ -36,7 +36,7 @@ func TestDashboardURL(t *testing.T) {
 func TestLinksSection(t *testing.T) {
 	desc := "hello"
 	with := AppendLinksSection(desc, "https://maps.google.com/a", "https://grafana.example.com")
-	if !strings.Contains(with, "🔗 链接") || !strings.Contains(with, "地图：") {
+	if !strings.Contains(with, "🔗 相关链接") || !strings.Contains(with, "地图：") {
 		t.Fatalf("links section missing: %s", with)
 	}
 	without := AppendLinksSection(desc, "", "")
@@ -60,8 +60,8 @@ func TestDriveAndChargeEventsContainLinks(t *testing.T) {
 		EndLat:       &lat2,
 		EndLng:       &lng2,
 	}}
-	ev := DriveEvents("1", "Model 3", d, "normal", true, "https://grafana.example.com", "/d/drives")
-	if len(ev) != 1 || !strings.Contains(ev[0].Description, "🔗 链接") {
+	ev := DriveEvents("1", "Model 3", d, "normal", true, time.UTC, "https://grafana.example.com", "/d/drives")
+	if len(ev) != 1 || !strings.Contains(ev[0].Description, "🔗 相关链接") {
 		t.Fatalf("drive links missing")
 	}
 
@@ -73,8 +73,8 @@ func TestDriveAndChargeEventsContainLinks(t *testing.T) {
 		Lat:       &lat1,
 		Lng:       &lng1,
 	}}
-	ec := ChargeEvents("1", "Model 3", c, "normal", true, "https://grafana.example.com", "/d/charges")
-	if len(ec) != 1 || !strings.Contains(ec[0].Description, "🔗 链接") {
+	ec := ChargeEvents("1", "Model 3", c, "normal", true, time.UTC, "https://grafana.example.com", "/d/charges")
+	if len(ec) != 1 || !strings.Contains(ec[0].Description, "🔗 相关链接") {
 		t.Fatalf("charge links missing")
 	}
 }

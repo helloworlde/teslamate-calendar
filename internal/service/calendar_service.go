@@ -177,7 +177,7 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 			return "", mapUpstreamErr(err)
 		}
 		if typ == CalendarAll || typ == CalendarDrives {
-			events = append(events, calendar.DriveEvents(carID, carName, drives, q.View, q.Detail, dash, s.cfg.TeslaMateDriveDashboardPath)...)
+			events = append(events, calendar.DriveEvents(carID, carName, drives, q.View, q.Detail, tr.Loc, dash, s.cfg.TeslaMateDriveDashboardPath)...)
 		}
 		if typ == CalendarDaily || typ == CalendarAll {
 			charges, err := s.client.ListCharges(ctx, carID, query)
@@ -213,14 +213,14 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 		if err != nil {
 			return "", mapUpstreamErr(err)
 		}
-		events = append(events, calendar.ChargeEvents(carID, carName, charges, q.View, q.Detail, dash, s.cfg.TeslaMateChargeDashboardPath)...)
+		events = append(events, calendar.ChargeEvents(carID, carName, charges, q.View, q.Detail, tr.Loc, dash, s.cfg.TeslaMateChargeDashboardPath)...)
 	}
 	if typ == CalendarAll || typ == CalendarUpdates {
 		updates, err := s.client.ListUpdates(ctx, carID)
 		if err != nil {
 			return "", mapUpstreamErr(err)
 		}
-		events = append(events, calendar.UpdateEvents(carID, carName, updates, q.Detail, dash, s.cfg.TeslaMateUpdateDashboardPath)...)
+		events = append(events, calendar.UpdateEvents(carID, carName, updates, q.Detail, tr.Loc, dash, s.cfg.TeslaMateUpdateDashboardPath)...)
 	}
 	return calendar.BuildCalendar(calendarName(carName, typ, q.Range), tr.Loc.String(), events), nil
 }

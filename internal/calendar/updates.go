@@ -9,7 +9,10 @@ import (
 	"teslamate-calendar/internal/model"
 )
 
-func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool, dashboardBaseURL, dashboardPath string) []Event {
+func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool, loc *time.Location, dashboardBaseURL, dashboardPath string) []Event {
+	if loc == nil {
+		loc = time.Local
+	}
 	out := make([]Event, 0, len(updates))
 	for _, u := range updates {
 		if u.StartDate == nil {
@@ -26,16 +29,23 @@ func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool
 			summary += " " + u.Version
 		}
 		descParts := []string{}
-		if u.ID != nil {
-			descParts = append(descParts, fmt.Sprintf("更新ID: %v", u.ID))
+		if u.Version != "" {
+			descParts = append(descParts, "版本："+u.Version)
 		}
-		descParts = append(descParts, "开始: "+start.Format(time.RFC3339))
-		if !end.Equal(start) {
-			descParts = append(descParts, "完成: "+end.Format(time.RFC3339))
-			descParts = append(descParts, "耗时: "+formatSeconds(end.Sub(start).Seconds()))
+		st := u.StartDate.In(loc)
+		if u.EndDate != nil {
+			et := u.EndDate.In(loc)
+			descParts = append(descParts, "时间："+FormatTimeRange(*u.StartDate, *u.EndDate, loc))
+			if d := et.Sub(st).Seconds(); d > 0 {
+				if z := FormatDurationZH(d); z != "" {
+					descParts = append(descParts, "耗时："+z)
+				}
+			}
+		} else {
+			descParts = append(descParts, "时间："+st.Format("2006-01-02 15:04"))
 		}
 		if u.Status != "" {
-			descParts = append(descParts, "状态: "+u.Status)
+			descParts = append(descParts, "状态："+u.Status)
 		}
 		if detail && u.ReleaseNotes != "" {
 			descParts = append(descParts, "Release Notes: "+u.ReleaseNotes)

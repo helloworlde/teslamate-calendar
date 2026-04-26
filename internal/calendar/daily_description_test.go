@@ -40,7 +40,7 @@ func TestDailyDescriptionStructure(t *testing.T) {
 	}}
 	events := DailySummaryEvents("1", "Model 3", rows, time.Local, "detail", true, true, "", "")
 	desc := events[0].Description
-	for _, part := range []string{"━━━━━━━━━━━━", "📊 当日摘要", "🚗 行程明细", "⚡ 充电明细"} {
+	for _, part := range []string{"━━━━━━━━━━━━", "📌 今日概览", "🚗 行程", "⚡ 充电"} {
 		if !strings.Contains(desc, part) {
 			t.Fatalf("missing section %s", part)
 		}
@@ -61,15 +61,15 @@ func TestWeeklyDescriptionSections(t *testing.T) {
 		t.Fatalf("expected 1 week, got %d", len(weeks))
 	}
 	d := weeks[0].Description
-	if !strings.Contains(d, "📊 周期摘要") || !strings.Contains(d, "📅 分日汇总") {
+	if !strings.Contains(d, "📌 本周概览") || !strings.Contains(d, "📅 每日概览") {
 		t.Fatalf("missing weekly sections: %s", d)
 	}
 	compact := WeeklySummaryEvents("1", "Model 3", rows, loc, "normal", false, "", "")
 	if len(compact) != 1 {
 		t.Fatal("expected 1 week when detail false")
 	}
-	if strings.Contains(compact[0].Description, "分日汇总") {
-		t.Fatalf("detail false should not include 分日汇总")
+	if strings.Contains(compact[0].Description, "每日概览") {
+		t.Fatalf("detail false should not include 每日概览")
 	}
 }
 

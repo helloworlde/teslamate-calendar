@@ -56,7 +56,7 @@ func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates [
 			v := *d.EndBatteryLevel
 			s.EndBattery = &v
 		}
-		s.DriveDetails = append(s.DriveDetails, formatDailyDriveLine(d, loc))
+		s.DriveDetails = append(s.DriveDetails, formatDailyDriveBlock(d, loc))
 	}
 	for _, c := range charges {
 		if c.StartDate == nil {
@@ -84,7 +84,7 @@ func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates [
 			v := *c.EndBatteryLevel
 			s.EndBattery = &v
 		}
-		s.ChargeDetails = append(s.ChargeDetails, formatDailyChargeLine(c, loc))
+		s.ChargeDetails = append(s.ChargeDetails, formatDailyChargeBlock(c, loc))
 	}
 	for _, u := range updates {
 		if u.StartDate == nil {
@@ -116,7 +116,7 @@ func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, lo
 	out := make([]Event, 0, len(rows))
 	for _, d := range rows {
 		summary := dailyTitle(vehicleName, d, view)
-		desc := buildDailyDescription(vehicleName, d, includeItems, detail)
+		desc := BuildDailyDescription(vehicleName, d, includeItems, detail, loc)
 		start := time.Date(d.Day.Year(), d.Day.Month(), d.Day.Day(), 0, 0, 0, 0, loc)
 		end := start.AddDate(0, 0, 1)
 		desc = AppendLinksSection(desc, "", DashboardURL(dashboardBaseURL, dashboardPath, carID, start, end))
@@ -137,14 +137,17 @@ func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, lo
 
 func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardBaseURL, dashboardPath string) []Event {
 	type weekAgg struct {
-		WeekStart time.Time
-		WeekEnd   time.Time
-		Distance  float64
-		DriveCnt  int
-		ChargeCnt int
-		UpdateCnt int
-		Kwh       float64
-		Days      []model.DailySummary
+		WeekStart      time.Time
+		WeekEnd        time.Time
+		Distance       float64
+		DriveCnt       int
+		ChargeCnt      int
+		UpdateCnt      int
+		Kwh            float64
+		Days           []model.DailySummary
+		TotalDriveSec  float64
+		Cost           float64
+		MaxSpeed       float64
 	}
 	byWeek := map[string]*weekAgg{}
 	for _, d := range rows {
@@ -160,6 +163,11 @@ func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, l
 		w.ChargeCnt += d.ChargeCount
 		w.UpdateCnt += d.UpdateCount
 		w.Kwh += d.KwhAdded
+		w.TotalDriveSec += d.DriveSeconds
+		w.Cost += d.Cost
+		if d.MaxSpeed > w.MaxSpeed {
+			w.MaxSpeed = d.MaxSpeed
+		}
 		w.Days = append(w.Days, d)
 	}
 	keys := make([]string, 0, len(byWeek))
@@ -171,7 +179,7 @@ func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, l
 	for _, k := range keys {
 		w := byWeek[k]
 		summary := weeklyTitle(vehicleName, w.Distance, w.DriveCnt, w.ChargeCnt, view)
-		desc := buildWeeklyDescription(vehicleName, w.WeekStart, w.WeekEnd, loc, w.Distance, w.DriveCnt, w.ChargeCnt, w.UpdateCnt, w.Kwh, w.Days, detail)
+		desc := BuildWeeklyDescription(vehicleName, w.WeekStart, w.WeekEnd, loc, w.Distance, w.DriveCnt, w.ChargeCnt, w.UpdateCnt, w.Kwh, w.MaxSpeed, w.Cost, w.TotalDriveSec, w.Days, detail)
 		start := w.WeekStart
 		end := w.WeekEnd
 		out = append(out, Event{
@@ -189,14 +197,17 @@ func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, l
 
 func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardBaseURL, dashboardPath string) []Event {
 	type monthAgg struct {
-		Start     time.Time
-		End       time.Time
-		Distance  float64
-		DriveCnt  int
-		ChargeCnt int
-		UpdateCnt int
-		Kwh       float64
-		Days      []model.DailySummary
+		Start         time.Time
+		End           time.Time
+		Distance      float64
+		DriveCnt      int
+		ChargeCnt     int
+		UpdateCnt     int
+		Kwh           float64
+		Days          []model.DailySummary
+		TotalDriveSec float64
+		Cost          float64
+		MaxSpeed      float64
 	}
 	byMonth := map[string]*monthAgg{}
 	for _, d := range rows {
@@ -213,6 +224,11 @@ func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, 
 		m.ChargeCnt += d.ChargeCount
 		m.UpdateCnt += d.UpdateCount
 		m.Kwh += d.KwhAdded
+		m.TotalDriveSec += d.DriveSeconds
+		m.Cost += d.Cost
+		if d.MaxSpeed > m.MaxSpeed {
+			m.MaxSpeed = d.MaxSpeed
+		}
 		m.Days = append(m.Days, d)
 	}
 	keys := make([]string, 0, len(byMonth))
@@ -224,7 +240,7 @@ func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, 
 	for _, k := range keys {
 		m := byMonth[k]
 		summary := monthlyTitle(vehicleName, m.Distance, m.DriveCnt, m.ChargeCnt, view)
-		desc := buildMonthlyDescription(vehicleName, m.Start, m.End, loc, m.Distance, m.DriveCnt, m.ChargeCnt, m.UpdateCnt, m.Kwh, m.Days, carID, detail)
+		desc := BuildMonthlyDescription(vehicleName, m.Start, m.End, loc, m.Distance, m.DriveCnt, m.ChargeCnt, m.UpdateCnt, m.Kwh, m.MaxSpeed, m.Cost, m.TotalDriveSec, m.Days, carID, detail)
 		start := m.Start
 		end := m.End
 		out = append(out, Event{
@@ -240,69 +256,14 @@ func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, 
 	return out
 }
 
-func formatDailyDriveLine(d model.Drive, loc *time.Location) string {
-	startText := "--:--"
-	endText := "--:--"
-	if d.StartDate != nil {
-		startText = d.StartDate.In(loc).Format("15:04")
-	}
-	if d.EndDate != nil {
-		endText = d.EndDate.In(loc).Format("15:04")
-	}
-	from := drivePointName(d, true)
-	to := drivePointName(d, false)
-	line := fmt.Sprintf("- %s-%s %s → %s", startText, endText, from, to)
-	if d.Distance != nil {
-		line += fmt.Sprintf(" %.2fkm", *d.Distance)
-	}
-	if d.DurationSeconds != nil {
-		line += fmt.Sprintf(" %.0fmin", *d.DurationSeconds/60)
-	}
-	if d.Consumption != nil {
-		line += fmt.Sprintf(" %.0fWh/km", *d.Consumption)
-	}
-	if d.StartBatteryLevel != nil && d.EndBatteryLevel != nil {
-		line += fmt.Sprintf(" %.0f%%→%.0f%%", *d.StartBatteryLevel, *d.EndBatteryLevel)
-	}
-	if m := GoogleRouteURL(d.StartLat, d.StartLng, d.EndLat, d.EndLng); m != "" {
-		line += "\n地图：" + m
-	}
-	return line
-}
-
-func formatDailyChargeLine(c model.Charge, loc *time.Location) string {
-	startText := "--:--"
-	endText := "--:--"
-	if c.StartDate != nil {
-		startText = c.StartDate.In(loc).Format("15:04")
-	}
-	if c.EndDate != nil {
-		endText = c.EndDate.In(loc).Format("15:04")
-	}
-	line := fmt.Sprintf("- %s-%s", startText, endText)
-	if c.KwhAdded != nil {
-		line += fmt.Sprintf(" +%.2fkWh", *c.KwhAdded)
-	}
-	if c.StartBatteryLevel != nil && c.EndBatteryLevel != nil {
-		line += fmt.Sprintf(" %.0f%%→%.0f%%", *c.StartBatteryLevel, *c.EndBatteryLevel)
-	}
-	if c.Address != "" {
-		line += " @" + c.Address
-	} else if c.Geofence != "" {
-		line += " @" + c.Geofence
-	}
-	if m := GooglePointURL(c.Lat, c.Lng); m != "" {
-		line += "\n地图：" + m
-	}
-	return line
-}
-
 func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
 	switch view {
 	case "compact":
 		parts := []string{"📊"}
 		if d.Distance > 0 {
-			parts = append(parts, fmt.Sprintf("%.0fkm", d.Distance))
+			if s := FormatDistanceTitle(d.Distance); s != "" {
+				parts = append(parts, s)
+			}
 		}
 		if d.DriveCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d🚗", d.DriveCount))
@@ -317,7 +278,9 @@ func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
 	case "detail":
 		parts := []string{"📊 " + vehicleName + " 日报"}
 		if d.Distance > 0 {
-			parts = append(parts, fmt.Sprintf("%.1fkm", d.Distance))
+			if s := FormatDistanceTitleOneDecimal(d.Distance); s != "" {
+				parts = append(parts, s)
+			}
 		}
 		if d.DriveCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d行程", d.DriveCount))
@@ -326,7 +289,9 @@ func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
 			parts = append(parts, fmt.Sprintf("%d充电", d.ChargeCount))
 		}
 		if d.KwhAdded > 0 {
-			parts = append(parts, fmt.Sprintf("+%.1fkWh", d.KwhAdded))
+			if s := FormatKWhTitle(d.KwhAdded); s != "" {
+				parts = append(parts, s)
+			}
 		}
 		if d.UpdateCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d更新", d.UpdateCount))
@@ -335,13 +300,20 @@ func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
 	default:
 		parts := []string{"📊 " + vehicleName}
 		if d.Distance > 0 {
-			parts = append(parts, fmt.Sprintf("%.0fkm", d.Distance))
+			if s := FormatDistanceTitle(d.Distance); s != "" {
+				parts = append(parts, s)
+			}
 		}
 		if d.DriveCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d行程", d.DriveCount))
 		}
 		if d.ChargeCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d充电", d.ChargeCount))
+		}
+		if d.DriveCount == 0 && d.ChargeCount > 0 && d.KwhAdded > 0 {
+			if s := FormatKWhTitle(d.KwhAdded); s != "" {
+				parts = append(parts, s)
+			}
 		}
 		if d.UpdateCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d更新", d.UpdateCount))
@@ -351,166 +323,51 @@ func dailyTitle(vehicleName string, d model.DailySummary, view string) string {
 }
 
 func weeklyTitle(vehicleName string, distance float64, driveCnt, chargeCnt int, view string) string {
+	km := FormatDistanceTitle(distance)
+	if view == "detail" {
+		km = FormatDistanceTitleOneDecimal(distance)
+	}
 	switch view {
 	case "compact":
-		return fmt.Sprintf("📊 本周 · %.0fkm · %d🚗 · %d⚡", distance, driveCnt, chargeCnt)
+		if km == "" {
+			km = "0km"
+		}
+		return fmt.Sprintf("📊 本周 · %s · %d🚗 · %d⚡", km, driveCnt, chargeCnt)
 	case "detail":
-		return fmt.Sprintf("📊 %s 周报 · %.1fkm · %d行程 · %d充电", vehicleName, distance, driveCnt, chargeCnt)
+		if km == "" {
+			km = "0.0km"
+		}
+		return fmt.Sprintf("📊 %s 周报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
 	default:
-		return fmt.Sprintf("📊 %s 周报 · %.0fkm · %d行程 · %d充电", vehicleName, distance, driveCnt, chargeCnt)
+		if km == "" {
+			km = "0km"
+		}
+		return fmt.Sprintf("📊 %s 周报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
 	}
 }
 
 func monthlyTitle(vehicleName string, distance float64, driveCnt, chargeCnt int, view string) string {
+	km := FormatDistanceTitle(distance)
+	if view == "detail" {
+		km = FormatDistanceTitleOneDecimal(distance)
+	}
 	switch view {
 	case "compact":
-		return fmt.Sprintf("📊 本月 · %.0fkm · %d🚗 · %d⚡", distance, driveCnt, chargeCnt)
+		if km == "" {
+			km = "0km"
+		}
+		return fmt.Sprintf("📊 本月 · %s · %d🚗 · %d⚡", km, driveCnt, chargeCnt)
 	case "detail":
-		return fmt.Sprintf("📊 %s 月报 · %.1fkm · %d行程 · %d充电", vehicleName, distance, driveCnt, chargeCnt)
+		if km == "" {
+			km = "0.0km"
+		}
+		return fmt.Sprintf("📊 %s 月报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
 	default:
-		return fmt.Sprintf("📊 %s 月报 · %.0fkm · %d行程 · %d充电", vehicleName, distance, driveCnt, chargeCnt)
-	}
-}
-
-func buildWeeklyDescription(vehicleName string, weekStart, weekEnd time.Time, loc *time.Location, distance float64, driveCnt, chargeCnt, updateCnt int, kwh float64, days []model.DailySummary, detail bool) string {
-	lines := []string{
-		"车辆：" + vehicleName,
-		fmt.Sprintf("周期：%s ~ %s", weekStart.In(loc).Format("2006-01-02"), weekEnd.AddDate(0, 0, -1).In(loc).Format("2006-01-02")),
-		"",
-		"━━━━━━━━━━━━",
-		"📊 周期摘要",
-		"━━━━━━━━━━━━",
-	}
-	if distance > 0 {
-		lines = append(lines, fmt.Sprintf("总里程：%.1f km", distance))
-	}
-	if driveCnt > 0 {
-		lines = append(lines, fmt.Sprintf("行程：%d 次", driveCnt))
-	}
-	if chargeCnt > 0 {
-		lines = append(lines, fmt.Sprintf("充电：%d 次", chargeCnt))
-	}
-	if kwh > 0 {
-		lines = append(lines, fmt.Sprintf("充入：%.1f kWh", kwh))
-	}
-	if updateCnt > 0 {
-		lines = append(lines, fmt.Sprintf("软件更新：%d 次", updateCnt))
-	}
-	if !detail {
-		return strings.Join(lines, "\n")
-	}
-	lines = append(lines, "", "━━━━━━━━━━━━", "📅 分日汇总", "━━━━━━━━━━━━")
-	for _, d := range days {
-		parts := []string{d.Day.In(loc).Format("01-02")}
-		if d.Distance > 0 {
-			parts = append(parts, fmt.Sprintf("%.1fkm", d.Distance))
+		if km == "" {
+			km = "0km"
 		}
-		if d.DriveCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d行程", d.DriveCount))
-		}
-		if d.ChargeCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d充电", d.ChargeCount))
-		}
-		if d.UpdateCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d更新", d.UpdateCount))
-		}
-		lines = append(lines, "- "+strings.Join(parts, " · "))
+		return fmt.Sprintf("📊 %s 月报 · %s · %d行程 · %d充电", vehicleName, km, driveCnt, chargeCnt)
 	}
-	return strings.Join(lines, "\n")
-}
-
-func buildMonthlyDescription(vehicleName string, monthStart, monthEnd time.Time, loc *time.Location, distance float64, driveCnt, chargeCnt, updateCnt int, kwh float64, days []model.DailySummary, carID string, detail bool) string {
-	lines := []string{
-		"车辆：" + vehicleName,
-		"月份：" + monthStart.In(loc).Format("2006-01"),
-		"",
-		"━━━━━━━━━━━━",
-		"📊 月度摘要",
-		"━━━━━━━━━━━━",
-	}
-	if distance > 0 {
-		lines = append(lines, fmt.Sprintf("总里程：%.1f km", distance))
-	}
-	if driveCnt > 0 {
-		lines = append(lines, fmt.Sprintf("行程：%d 次", driveCnt))
-	}
-	if chargeCnt > 0 {
-		lines = append(lines, fmt.Sprintf("充电：%d 次", chargeCnt))
-	}
-	if kwh > 0 {
-		lines = append(lines, fmt.Sprintf("充入：%.1f kWh", kwh))
-	}
-	if updateCnt > 0 {
-		lines = append(lines, fmt.Sprintf("软件更新：%d 次", updateCnt))
-	}
-	if !detail {
-		return strings.Join(lines, "\n")
-	}
-	lines = append(lines, "", "━━━━━━━━━━━━", "📅 分周汇总", "━━━━━━━━━━━━")
-	weekly := WeeklySummaryEvents(carID, vehicleName, days, loc, "normal", false, "", "")
-	for _, w := range weekly {
-		lines = append(lines, "- "+w.Summary)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func buildDailyDescription(vehicleName string, d model.DailySummary, includeItems, detail bool) string {
-	lines := []string{
-		"日期：" + d.Day.Format("2006-01-02"),
-		"车辆：" + vehicleName,
-		"",
-		"━━━━━━━━━━━━",
-		"📊 当日摘要",
-		"━━━━━━━━━━━━",
-	}
-	if d.DriveCount > 0 {
-		lines = append(lines, fmt.Sprintf("行程：%d 次", d.DriveCount))
-	}
-	if d.Distance > 0 {
-		lines = append(lines, fmt.Sprintf("里程：%.2f km", d.Distance))
-	}
-	if d.DriveSeconds > 0 {
-		lines = append(lines, fmt.Sprintf("行驶：%.0f min", d.DriveSeconds/60))
-	}
-	if d.MaxSpeed > 0 {
-		lines = append(lines, fmt.Sprintf("最高速度：%.0f km/h", d.MaxSpeed))
-	}
-	if d.ChargeCount > 0 {
-		lines = append(lines, fmt.Sprintf("充电：%d 次", d.ChargeCount))
-	}
-	if d.KwhAdded > 0 {
-		lines = append(lines, fmt.Sprintf("充入：%.2f kWh", d.KwhAdded))
-	}
-	if d.ChargeSeconds > 0 {
-		lines = append(lines, fmt.Sprintf("充电时长：%.0f min", d.ChargeSeconds/60))
-	}
-	if d.Cost > 0 {
-		lines = append(lines, fmt.Sprintf("费用：%.2f", d.Cost))
-	}
-	if d.MaxChargePower > 0 {
-		lines = append(lines, fmt.Sprintf("充电峰值：%.0f kW", d.MaxChargePower))
-	}
-	if detail && d.StartBattery != nil && d.EndBattery != nil {
-		lines = append(lines, fmt.Sprintf("电量：%.0f%% → %.0f%%", *d.StartBattery, *d.EndBattery))
-	}
-	if includeItems && len(d.DriveDetails) > 0 {
-		lines = append(lines, "", "━━━━━━━━━━━━", "🚗 行程明细", "━━━━━━━━━━━━")
-		lines = append(lines, d.DriveDetails...)
-	}
-	if includeItems && len(d.ChargeDetails) > 0 {
-		lines = append(lines, "", "━━━━━━━━━━━━", "⚡ 充电明细", "━━━━━━━━━━━━")
-		lines = append(lines, d.ChargeDetails...)
-	}
-	if len(d.UpdateVersions) > 0 {
-		lines = append(lines, "", "━━━━━━━━━━━━", "⬆️ 软件更新", "━━━━━━━━━━━━")
-		for _, v := range d.UpdateVersions {
-			lines = append(lines, "版本："+v)
-		}
-	} else if d.UpdateCount > 0 {
-		lines = append(lines, "", "━━━━━━━━━━━━", "⬆️ 软件更新", "━━━━━━━━━━━━")
-		lines = append(lines, fmt.Sprintf("次数：%d 次", d.UpdateCount))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func dailyLocation(d model.DailySummary) string {

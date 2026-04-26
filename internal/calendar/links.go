@@ -21,17 +21,21 @@ func DashboardURL(baseURL, path, carID string, start, end time.Time) string {
 }
 
 func AppendLinksSection(desc, mapURL, dashboardURL string) string {
-	links := []string{}
-	if mapURL != "" {
-		links = append(links, "地图："+mapURL)
-	}
-	if dashboardURL != "" {
-		links = append(links, "TeslaMate 看板："+dashboardURL)
-	}
-	if len(links) == 0 {
+	mapURL = strings.TrimSpace(mapURL)
+	dashboardURL = strings.TrimSpace(dashboardURL)
+	if mapURL == "" && dashboardURL == "" {
 		return desc
 	}
-	parts := []string{desc, "", "━━━━━━━━━━━━", "🔗 链接", "━━━━━━━━━━━━"}
-	parts = append(parts, links...)
+	parts := []string{}
+	if strings.TrimSpace(desc) != "" {
+		parts = append(parts, desc, "")
+	}
+	parts = append(parts, "━━━━━━━━━━━━", "🔗 相关链接", "━━━━━━━━━━━━")
+	if mapURL != "" {
+		parts = append(parts, "地图：", mapURL)
+	}
+	if dashboardURL != "" {
+		parts = append(parts, "TeslaMate 看板：", dashboardURL)
+	}
 	return strings.Join(parts, "\n")
 }
