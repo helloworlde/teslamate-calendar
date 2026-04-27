@@ -8,6 +8,7 @@ import (
 	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
+// DriveEvents 生成行程日历事件列表
 func DriveEvents(carID, vehicleName string, drives []model.Drive, view string, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	_ = detail
 	out := make([]Event, 0, len(drives))

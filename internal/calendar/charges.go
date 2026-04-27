@@ -8,6 +8,7 @@ import (
 	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
+// ChargeEvents 生成充电日历事件列表
 func ChargeEvents(carID, vehicleName string, charges []model.Charge, view string, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	_ = detail
 	if loc == nil {

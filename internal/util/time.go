@@ -14,6 +14,7 @@ type TimeRange struct {
 	Loc      *time.Location
 }
 
+// BuildTimeRange 根据参数构建时间范围，支持灵活的日期格式
 func BuildTimeRange(startRaw, endRaw string, days, defaultDays, maxDays int, timezone string, now time.Time) (TimeRange, error) {
 	if days <= 0 {
 		days = defaultDays

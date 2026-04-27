@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Event 表示一个日历事件
 type Event struct {
 	UID             string
 	DTStamp         time.Time
@@ -24,6 +25,7 @@ type Event struct {
 	URL             string
 }
 
+// StableUID 生成稳定的唯一标识符，用于日历事件的 UID
 func StableUID(parts ...string) string {
 	h := sha1.New()
 	for _, p := range parts {
@@ -33,6 +35,7 @@ func StableUID(parts ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// BuildCalendar 构建符合 RFC 5545 标准的 iCalendar 格式字符串
 func BuildCalendar(name, timezone string, events []Event) string {
 	loc := time.Local
 	if strings.TrimSpace(timezone) != "" {

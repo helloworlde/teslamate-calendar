@@ -47,12 +47,13 @@ type cacheItem struct {
 	ExpiresAt time.Time
 }
 
+// CalendarService 日历服务，负责生成 iCalendar 格式的日历数据
 type CalendarService struct {
 	cfg    config.Config
 	client *client.Client
 	mu     sync.RWMutex
 	cache  map[string]cacheItem
-	group  singleflight.Group
+	group  singleflight.Group // 防止缓存击穿
 }
 
 func NewCalendarService(cfg config.Config, c *client.Client) *CalendarService {
@@ -63,6 +64,7 @@ func NewCalendarService(cfg config.Config, c *client.Client) *CalendarService {
 	}
 }
 
+// ParseQuery 解析 URL 查询参数并返回标准化的查询参数
 func ParseQuery(v url.Values, cfg config.Config) QueryParams {
 	days := cfg.DefaultDays
 	if raw := strings.TrimSpace(v.Get("days")); raw != "" {
@@ -110,6 +112,7 @@ func ParseQuery(v url.Values, cfg config.Config) QueryParams {
 	}
 }
 
+// CalendarICS 生成指定类型的 iCalendar 数据，支持缓存和防缓存击穿
 func (s *CalendarService) CalendarICS(ctx context.Context, key string, carID string, typ CalendarType, q QueryParams) (string, error) {
 	if q.Days > s.cfg.MaxDays {
 		return "", fmt.Errorf("days exceeds MAX_DAYS: %d", s.cfg.MaxDays)
@@ -176,26 +179,7 @@ func (s *CalendarService) buildICS(ctx context.Context, carID string, typ Calend
 			}
 			updates, _ := s.client.ListUpdates(ctx, carID)
 			rows := calendar.BuildDailySummaries(drives, charges, updates, tr.Loc)
-			if typ == CalendarDaily {
-				switch q.Range {
-				case "week":
-					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				case "month":
-					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				default:
-					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				}
-			}
-			if typ == CalendarAll {
-				switch q.Range {
-				case "week":
-					events = append(events, calendar.WeeklySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				case "month":
-					events = append(events, calendar.MonthlySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				default:
-					events = append(events, calendar.DailySummaryEvents(carID, carName, rows, tr.Loc, q.View, q.Detail, tmpl)...)
-				}
-			}
+			events = append(events, s.buildSummaryEvents(carID, carName, rows, tr.Loc, q, tmpl)...)
 		}
 	}
 	if typ == CalendarAll || typ == CalendarCharges {
@@ -286,6 +270,18 @@ func calendarName(carName string, typ CalendarType, rng string) string {
 		return carName + " · 更新"
 	default:
 		return carName + " · TeslaMate"
+	}
+}
+
+// buildSummaryEvents 根据范围类型构建汇总事件（日报/周报/月报）
+func (s *CalendarService) buildSummaryEvents(carID, carName string, rows []model.DailySummary, loc *time.Location, q QueryParams, tmpl string) []calendar.Event {
+	switch q.Range {
+	case "week":
+		return calendar.WeeklySummaryEvents(carID, carName, rows, loc, q.View, q.Detail, tmpl)
+	case "month":
+		return calendar.MonthlySummaryEvents(carID, carName, rows, loc, q.View, q.Detail, tmpl)
+	default:
+		return calendar.DailySummaryEvents(carID, carName, rows, loc, q.View, q.Detail, tmpl)
 	}
 }
 

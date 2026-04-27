@@ -27,6 +27,7 @@ type Config struct {
 	TeslaMateDashboardURLTemplate string
 }
 
+// Load 从环境变量加载配置
 func Load() (Config, error) {
 	cfg := Config{
 		ListenAddr:                    env("LISTEN_ADDR", ":8080"),

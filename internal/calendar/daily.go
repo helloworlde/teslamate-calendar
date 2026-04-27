@@ -9,6 +9,7 @@ import (
 	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
+// BuildDailySummaries 将行程、充电和更新数据按日期聚合为每日汇总
 func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates []model.Update, loc *time.Location) []model.DailySummary {
 	sort.Slice(drives, func(i, j int) bool {
 		return safeTime(drives[i].StartDate).Before(safeTime(drives[j].StartDate))
@@ -112,6 +113,7 @@ func BuildDailySummaries(drives []model.Drive, charges []model.Charge, updates [
 	return out
 }
 
+// DailySummaryEvents 生成每日汇总日历事件
 func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	out := make([]Event, 0, len(rows))
 	for _, d := range rows {
@@ -136,6 +138,7 @@ func DailySummaryEvents(carID, vehicleName string, rows []model.DailySummary, lo
 	return out
 }
 
+// WeeklySummaryEvents 生成每周汇总日历事件
 func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	type weekAgg struct {
 		WeekStart     time.Time
@@ -197,6 +200,7 @@ func WeeklySummaryEvents(carID, vehicleName string, rows []model.DailySummary, l
 	return out
 }
 
+// MonthlySummaryEvents 生成每月汇总日历事件
 func MonthlySummaryEvents(carID, vehicleName string, rows []model.DailySummary, loc *time.Location, view string, detail bool, dashboardTmpl string) []Event {
 	type monthAgg struct {
 		Start         time.Time

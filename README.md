@@ -2,12 +2,20 @@
 
 [Module](https://github.com/helloworlde/teslamate-calendar)：`github.com/helloworlde/teslamate-calendar`
 
-`teslamate-calendar` 通过 `teslamateapi` HTTP API 读取数据并输出 **RFC 5545** iCalendar（`text/calendar`）。无数据库、无后台任务、无 Redis。
+`teslamate-calendar` 通过 `teslamateapi` HTTP API 读取数据并输出 **RFC 5545** iCalendar（`text/calendar`）格式。无数据库、无后台任务、无 Redis，轻量级部署。
 
 **镜像：**
 
 - `ghcr.io/helloworlde/teslamate-calendar:latest`（`main` 构建）
 - 其他标签见 [Packages](https://github.com/helloworlde/teslamate-calendar/pkgs/container/teslamate-calendar)
+
+## 功能特性
+
+- 📅 生成符合 RFC 5545 标准的 iCalendar 格式
+- 🚗 支持行程、充电、软件更新、日报/周报/月报
+- 🔒 内置缓存机制，支持防缓存击穿（singleflight）
+- 🌍 支持时区配置和多种视图模式
+- 🔗 集成 Google Maps 和 Grafana 看板链接
 
 ## 环境变量
 
@@ -73,11 +81,30 @@ docker build -t teslamate-calendar:local .
 
 ## 开发
 
+### 本地运行
+
 ```bash
 export TESLAMATE_API_BASE_URL=http://localhost:4000
 export CALENDAR_FEED_TOKEN=dev-only-token
 go run ./cmd/teslamate-calendar
 ```
+
+### 运行测试
+
+```bash
+go test ./...
+```
+
+### 代码结构
+
+- `cmd/teslamate-calendar/` - 主程序入口
+- `internal/api/` - HTTP API 处理器和路由
+- `internal/calendar/` - iCalendar 生成逻辑
+- `internal/client/` - TeslaMate API 客户端
+- `internal/config/` - 配置管理
+- `internal/model/` - 数据模型
+- `internal/service/` - 业务服务层
+- `internal/util/` - 工具函数
 
 ## License
 

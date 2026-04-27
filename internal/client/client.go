@@ -24,6 +24,7 @@ type Query struct {
 	MaxDistance string
 }
 
+// Client TeslaMate API 客户端，用于与 TeslaMate API 进行通信
 type Client struct {
 	BaseURL    *url.URL
 	HTTPClient *http.Client
@@ -32,6 +33,7 @@ type Client struct {
 	AuthScheme string
 }
 
+// New 创建新的 TeslaMate API 客户端
 func New(baseURL, token, authHeader, authScheme string, timeout time.Duration) (*Client, error) {
 	n, err := util.NormalizeTeslaMateAPIBase(baseURL)
 	if err != nil {
@@ -112,6 +114,7 @@ func (c *Client) GetCar(ctx context.Context, carID string) (model.CarProfile, er
 	return model.CarProfile{}, fmt.Errorf("car id %d not found in response", wantID)
 }
 
+// ListDrives 获取指定车辆的行程列表
 func (c *Client) ListDrives(ctx context.Context, carID string, q Query) ([]model.Drive, error) {
 	v := url.Values{}
 	if q.HasStartEnd {
@@ -166,6 +169,7 @@ func (c *Client) ListDrives(ctx context.Context, carID string, q Query) ([]model
 	return out, nil
 }
 
+// ListCharges 获取指定车辆的充电记录列表
 func (c *Client) ListCharges(ctx context.Context, carID string, q Query) ([]model.Charge, error) {
 	v := url.Values{}
 	if q.HasStartEnd {
@@ -202,6 +206,7 @@ func (c *Client) ListCharges(ctx context.Context, carID string, q Query) ([]mode
 	return out, nil
 }
 
+// ListUpdates 获取指定车辆的软件更新记录
 func (c *Client) ListUpdates(ctx context.Context, carID string) ([]model.Update, error) {
 	body, err := c.get(ctx, c.apiURL("v1", "cars", carID, "updates"), nil)
 	if err != nil {

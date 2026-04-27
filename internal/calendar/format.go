@@ -112,23 +112,19 @@ func FormatCost(c float64) string {
 }
 
 func FormatSpeedKMH(v float64) string {
-	if isBadFloat(v) || v <= 0 {
-		return ""
-	}
-	if math.Round(v) == v {
-		return fmt.Sprintf("%.0f km/h", v)
-	}
-	return fmt.Sprintf("%.0f km/h", v)
+	return formatUnit(v, "km/h")
 }
 
 func FormatPowerKW(v float64) string {
+	return formatUnit(v, "kW")
+}
+
+// formatUnit 格式化数值并添加单位
+func formatUnit(v float64, unit string) string {
 	if isBadFloat(v) || v <= 0 {
 		return ""
 	}
-	if math.Round(v) == v {
-		return fmt.Sprintf("%.0f kW", v)
-	}
-	return fmt.Sprintf("%.0f kW", v)
+	return fmt.Sprintf("%.0f %s", v, unit)
 }
 
 func FormatWhPerKm(v float64) string {

@@ -9,6 +9,7 @@ import (
 	"github.com/helloworlde/teslamate-calendar/internal/model"
 )
 
+// UpdateEvents 生成软件更新日历事件列表
 func UpdateEvents(carID, vehicleName string, updates []model.Update, detail bool, loc *time.Location, dashboardTmpl string) []Event {
 	if loc == nil {
 		loc = time.Local
